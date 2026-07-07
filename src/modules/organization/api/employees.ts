@@ -2,6 +2,7 @@ import { z } from "zod";
 import { EmployeeType, MasterDataStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createCrudApi } from "@/lib/api/crud-factory";
+import { optionalDateInput } from "@/lib/api/validation";
 
 const createSchema = z.object({
   code: z.string().min(1, "Mã nhân viên không được để trống"),
@@ -11,7 +12,7 @@ const createSchema = z.object({
   departmentId: z.string().nullable().optional(),
   positionId: z.string().nullable().optional(),
   managerId: z.string().nullable().optional(),
-  hireDate: z.string().optional(),
+  hireDate: optionalDateInput(),
   employeeType: z.nativeEnum(EmployeeType).optional(),
   status: z.nativeEnum(MasterDataStatus).optional(),
 });

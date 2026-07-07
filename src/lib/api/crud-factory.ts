@@ -25,8 +25,13 @@ interface CrudConfig<TCreate, TUpdate> {
   /** Tên resource dùng cho permission check, vd. "product-category". */
   resource: string;
   delegate: CrudDelegate;
-  createSchema: z.ZodType<TCreate>;
-  updateSchema: z.ZodType<TUpdate>;
+  // Input type parameter relaxed to `any` — schema có thể dùng `.transform()`
+  // (vd. optionalDateInput()) nên input type khác output type (TCreate/TUpdate);
+  // ở đây ta chỉ quan tâm output type sau khi `.parse()`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createSchema: z.ZodType<TCreate, z.ZodTypeDef, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updateSchema: z.ZodType<TUpdate, z.ZodTypeDef, any>;
   searchFields?: string[];
   sortableFields?: string[];
   include?: Record<string, unknown>;

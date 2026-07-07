@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 const RESOURCES = [
+  // Phase 1 — Foundation
   "product",
   "product-category",
   "uom",
@@ -23,9 +24,27 @@ const RESOURCES = [
   "position",
   "employee",
   "approval-request",
+  // Phase 2 — Procurement & Entrusted Import
+  "supplier",
+  "purchase-request",
+  "purchase-order",
+  "import-shipment",
+  "landed-cost",
+  "goods-receipt",
+  "user", // chỉ read — dùng để chọn người duyệt (approver) trong workflow
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
+
+/** Action đặc thù ngoài read/create/update, chỉ áp dụng cho 1 số resource. */
+const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
+  "purchase-order": ["approve"],
+};
+
+/** Resource chỉ có 1 phần action chuẩn (vd. "user" chỉ có read, chưa có UI tạo/sửa User ở Phase 1-2). */
+const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly string[]>> = {
+  user: ["read"],
+};
 
 async function main() {
   const company = await prisma.company.upsert({
@@ -41,7 +60,8 @@ async function main() {
 
   const permissionCodes: string[] = [];
   for (const resource of RESOURCES) {
-    for (const action of ACTIONS) {
+    const actions = [...(ACTIONS_OVERRIDE[resource] ?? ACTIONS), ...(EXTRA_ACTIONS[resource] ?? [])];
+    for (const action of actions) {
       const code = `${resource}:${action}`;
       permissionCodes.push(code);
       await prisma.permission.upsert({
@@ -69,16 +89,29 @@ async function main() {
   }
   console.log(`Role ADMIN has ${permissions.length} permissions.`);
 
+  const adminEmployee = await prisma.employee.upsert({
+    where: { companyId_code: { companyId: company.id, code: "EMP-ADMIN" } },
+    update: {},
+    create: {
+      companyId: company.id,
+      code: "EMP-ADMIN",
+      fullName: "Quản trị viên hệ thống",
+      employeeType: "FULL_TIME",
+      status: "ACTIVE",
+    },
+  });
+
   const adminPasswordHash = await bcrypt.hash("Admin@123456", 10);
   const adminUser = await prisma.user.upsert({
     where: { username: "admin" },
-    update: {},
+    update: { employeeId: adminEmployee.id },
     create: {
       companyId: company.id,
       username: "admin",
       email: "admin@example.com",
       passwordHash: adminPasswordHash,
       status: "ACTIVE",
+      employeeId: adminEmployee.id,
     },
   });
 

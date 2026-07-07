@@ -11,6 +11,11 @@ import {
   Users,
   IdCard,
   ClipboardCheck,
+  Truck,
+  FileText,
+  ShoppingCart,
+  Ship,
+  PackageCheck,
 } from "lucide-react";
 
 export interface NavItem {
@@ -46,6 +51,16 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Phòng ban", href: "/org/departments", icon: Network },
       { label: "Chức vụ", href: "/org/positions", icon: IdCard },
       { label: "Nhân viên", href: "/org/employees", icon: Users },
+    ],
+  },
+  {
+    label: "Mua hàng",
+    items: [
+      { label: "Nhà cung cấp", href: "/procurement/suppliers", icon: Truck },
+      { label: "Đề nghị mua hàng", href: "/procurement/purchase-requests", icon: FileText },
+      { label: "Đơn mua hàng", href: "/procurement/purchase-orders", icon: ShoppingCart },
+      { label: "Lô hàng nhập khẩu", href: "/procurement/import-shipments", icon: Ship },
+      { label: "Phiếu nhập kho", href: "/procurement/goods-receipts", icon: PackageCheck },
     ],
   },
   {

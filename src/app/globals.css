@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* Design tokens — theo docs/design-system.md ("Liquid Glass"). Không thêm màu
+   mới ở đây nếu chưa kiểm tra contrast ratio theo mục 2.3 của tài liệu đó. */
+
+:root {
+  --surface-base: #f5f6f8;
+  --surface-glass: rgba(255, 255, 255, 0.55);
+  --surface-glass-border: rgba(255, 255, 255, 0.35);
+  --surface-solid: #ffffff;
+  --surface-overlay-scrim: rgba(15, 17, 21, 0.4);
+  --surface-glass-blur: 20px;
+
+  --brand-primary: #2563eb;
+  --brand-primary-hover: #1d4ed8;
+
+  --semantic-success: #16a34a;
+  --semantic-warning: #d97706;
+  --semantic-danger: #dc2626;
+  --semantic-info: #0891b2;
+
+  --text-primary: #0f1115;
+  --text-secondary: #5b6270;
+  --text-disabled: #a6acb8;
+}
+
+:root[data-theme="dark"] {
+  --surface-base: #0b0d12;
+  --surface-glass: rgba(24, 26, 32, 0.55);
+  --surface-glass-border: rgba(255, 255, 255, 0.08);
+  --surface-solid: #15171d;
+  --surface-overlay-scrim: rgba(0, 0, 0, 0.6);
+  --surface-glass-blur: 24px;
+
+  --text-primary: #f2f3f5;
+  --text-secondary: #9aa1ae;
+  --text-disabled: #585e68;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-base: #0b0d12;
+    --surface-glass: rgba(24, 26, 32, 0.55);
+    --surface-glass-border: rgba(255, 255, 255, 0.08);
+    --surface-solid: #15171d;
+    --surface-overlay-scrim: rgba(0, 0, 0, 0.6);
+    --surface-glass-blur: 24px;
+
+    --text-primary: #f2f3f5;
+    --text-secondary: #9aa1ae;
+    --text-disabled: #585e68;
+  }
+}
+
+@theme inline {
+  --color-surface-base: var(--surface-base);
+  --color-surface-glass: var(--surface-glass);
+  --color-surface-glass-border: var(--surface-glass-border);
+  --color-surface-solid: var(--surface-solid);
+  --color-surface-overlay-scrim: var(--surface-overlay-scrim);
+
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-hover: var(--brand-primary-hover);
+
+  --color-semantic-success: var(--semantic-success);
+  --color-semantic-warning: var(--semantic-warning);
+  --color-semantic-danger: var(--semantic-danger);
+  --color-semantic-info: var(--semantic-info);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-disabled: var(--text-disabled);
+
+  --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+body {
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.glass-surface {
+  background: var(--surface-glass);
+  border: 1px solid var(--surface-glass-border);
+  backdrop-filter: blur(var(--surface-glass-blur));
+  -webkit-backdrop-filter: blur(var(--surface-glass-blur));
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

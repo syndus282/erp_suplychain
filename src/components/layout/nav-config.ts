@@ -16,6 +16,11 @@ import {
   ShoppingCart,
   Ship,
   PackageCheck,
+  Boxes,
+  ScrollText,
+  Barcode,
+  ArrowLeftRight,
+  ClipboardList,
 } from "lucide-react";
 
 export interface NavItem {
@@ -61,6 +66,16 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Đơn mua hàng", href: "/procurement/purchase-orders", icon: ShoppingCart },
       { label: "Lô hàng nhập khẩu", href: "/procurement/import-shipments", icon: Ship },
       { label: "Phiếu nhập kho", href: "/procurement/goods-receipts", icon: PackageCheck },
+    ],
+  },
+  {
+    label: "Kho vận",
+    items: [
+      { label: "Tồn kho", href: "/inventory/balances", icon: Boxes },
+      { label: "Sổ cái tồn kho", href: "/inventory/movements", icon: ScrollText },
+      { label: "Serial Number", href: "/inventory/serial-numbers", icon: Barcode },
+      { label: "Điều chuyển kho", href: "/inventory/transfers", icon: ArrowLeftRight },
+      { label: "Kiểm kê kho", href: "/inventory/counts", icon: ClipboardList },
     ],
   },
   {

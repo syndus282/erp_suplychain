@@ -18,7 +18,7 @@ interface PoLineOption {
   qty: number;
   qtyReceived: number;
   qtyRemaining: number;
-  product: { id: string; code: string; name: string };
+  product: { id: string; code: string; name: string; manageSerial: boolean; manageLot: boolean };
 }
 
 interface ReceiptLine {
@@ -60,6 +60,8 @@ export function GoodsReceiptsClient() {
   const [poId, setPoId] = useState("");
   const [poLines, setPoLines] = useState<PoLineOption[]>([]);
   const [qtyByLine, setQtyByLine] = useState<Record<string, string>>({});
+  const [serialTextByLine, setSerialTextByLine] = useState<Record<string, string>>({});
+  const [lotNoByLine, setLotNoByLine] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,6 +84,8 @@ export function GoodsReceiptsClient() {
     setPoId("");
     setPoLines([]);
     setQtyByLine({});
+    setSerialTextByLine({});
+    setLotNoByLine({});
     setFormError(null);
     setPanelOpen(true);
   }
@@ -94,6 +98,8 @@ export function GoodsReceiptsClient() {
     const defaults: Record<string, string> = {};
     for (const l of lines) defaults[l.id] = String(l.qtyRemaining);
     setQtyByLine(defaults);
+    setSerialTextByLine({});
+    setLotNoByLine({});
   }
 
   async function handleSubmit() {
@@ -102,7 +108,20 @@ export function GoodsReceiptsClient() {
 
     const lines = poLines
       .filter((l) => Number(qtyByLine[l.id]) > 0)
-      .map((l) => ({ poLineId: l.id, productId: l.product.id, qtyReceived: Number(qtyByLine[l.id]) }));
+      .map((l) => {
+        const qtyReceived = Number(qtyByLine[l.id]);
+        const line: Record<string, unknown> = { poLineId: l.id, productId: l.product.id, qtyReceived };
+        if (l.product.manageSerial) {
+          line.serialNumbers = (serialTextByLine[l.id] ?? "")
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+        if (l.product.manageLot && lotNoByLine[l.id]) {
+          line.lotNo = lotNoByLine[l.id];
+        }
+        return line;
+      });
 
     const res = await fetch("/api/procurement/goods-receipts", {
       method: "POST",
@@ -128,8 +147,8 @@ export function GoodsReceiptsClient() {
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Phiếu nhập kho</h1>
           <p className="mt-1 text-sm text-text-secondary">
-            Nhận hàng theo đơn mua hàng — cập nhật số lượng đã nhận/còn lại của PO. Việc cập nhật tồn kho chi tiết
-            (StockMovement/InventoryBalance) thuộc Phase 3.
+            Nhận hàng theo đơn mua hàng — tự động cập nhật tồn kho (StockMovement/InventoryBalance) và tạo Serial
+            Number/Lot cho sản phẩm quản lý theo serial/lot.
           </p>
         </div>
         <Button onClick={openCreate} className="gap-1.5" disabled={purchaseOrders.length === 0}>
@@ -220,17 +239,41 @@ export function GoodsReceiptsClient() {
                 <Label>Số lượng nhận</Label>
                 <div className="mt-2 flex flex-col gap-2">
                   {poLines.map((line) => (
-                    <div key={line.id} className="flex items-center gap-3 rounded-lg border border-text-disabled/20 p-2">
-                      <div className="flex-1 text-sm">
-                        {line.product.code} - {line.product.name}
-                        <div className="text-xs text-text-secondary">Còn lại: {line.qtyRemaining}</div>
+                    <div key={line.id} className="rounded-lg border border-text-disabled/20 p-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 text-sm">
+                          {line.product.code} - {line.product.name}
+                          <div className="text-xs text-text-secondary">Còn lại: {line.qtyRemaining}</div>
+                        </div>
+                        <Input
+                          type="number"
+                          className="w-28"
+                          value={qtyByLine[line.id] ?? ""}
+                          onChange={(e) => setQtyByLine((prev) => ({ ...prev, [line.id]: e.target.value }))}
+                        />
                       </div>
-                      <Input
-                        type="number"
-                        className="w-28"
-                        value={qtyByLine[line.id] ?? ""}
-                        onChange={(e) => setQtyByLine((prev) => ({ ...prev, [line.id]: e.target.value }))}
-                      />
+
+                      {line.product.manageSerial && (
+                        <div className="mt-2">
+                          <Label>Serial number (mỗi dòng 1 serial, phải đủ số lượng nhận)</Label>
+                          <textarea
+                            className="w-full rounded-lg border border-text-disabled/40 bg-surface-solid px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-primary"
+                            rows={3}
+                            value={serialTextByLine[line.id] ?? ""}
+                            onChange={(e) => setSerialTextByLine((prev) => ({ ...prev, [line.id]: e.target.value }))}
+                          />
+                        </div>
+                      )}
+
+                      {line.product.manageLot && (
+                        <div className="mt-2">
+                          <Label>Số lô (Lot No)</Label>
+                          <Input
+                            value={lotNoByLine[line.id] ?? ""}
+                            onChange={(e) => setLotNoByLine((prev) => ({ ...prev, [line.id]: e.target.value }))}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

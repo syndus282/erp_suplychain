@@ -32,6 +32,12 @@ const RESOURCES = [
   "landed-cost",
   "goods-receipt",
   "user", // chỉ read — dùng để chọn người duyệt (approver) trong workflow
+  // Phase 3 — Inventory & Warehouse
+  "inventory-balance", // chỉ read — số liệu tổng hợp, không sửa tay
+  "stock-movement", // chỉ read — sổ cái, không sửa/xóa
+  "stock-transfer",
+  "stock-count",
+  "serial-number", // chỉ read — tạo qua GoodsReceipt, chưa có CRUD riêng ở Phase 3
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
@@ -39,11 +45,16 @@ const ACTIONS = ["read", "create", "update"] as const;
 /** Action đặc thù ngoài read/create/update, chỉ áp dụng cho 1 số resource. */
 const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
   "purchase-order": ["approve"],
+  "stock-transfer": ["ship", "receive"],
+  "stock-count": ["submit", "approve"],
 };
 
 /** Resource chỉ có 1 phần action chuẩn (vd. "user" chỉ có read, chưa có UI tạo/sửa User ở Phase 1-2). */
 const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly string[]>> = {
   user: ["read"],
+  "inventory-balance": ["read"],
+  "stock-movement": ["read"],
+  "serial-number": ["read"],
 };
 
 async function main() {

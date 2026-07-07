@@ -1,0 +1,2125 @@
+// Nguồn sự thật duy nhất về data model — xem ERD đầy đủ tại docs/data-model.md
+// Quy ước bắt buộc (CLAUDE.md mục 4): PK = cuid, companyId trên mọi bảng chính,
+// tiền tệ = Int kèm field currency, ngày giờ = DateTime (UTC).
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// =========================================================================
+// 3. FOUNDATION — Company / Organization / User / Role
+// =========================================================================
+
+enum MasterDataStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum UserStatus {
+  ACTIVE
+  LOCKED
+  DISABLED
+}
+
+enum EmployeeType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  OUTSOURCE
+}
+
+enum BranchType {
+  HEAD_OFFICE
+  BRANCH
+  WAREHOUSE_SITE
+}
+
+model Company {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  taxCode      String?
+  address      String?
+  baseCurrency String   @default("VND")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  branches Branch[]
+}
+
+model Branch {
+  id        String           @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  address   String?
+  type      BranchType       @default(BRANCH)
+  status    MasterDataStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id])
+  departments Department[]
+  warehouses  Warehouse[]
+
+  @@unique([companyId, code])
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  companyId String
+  branchId  String?
+  code      String
+  name      String
+  parentId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch           Branch?           @relation(fields: [branchId], references: [id])
+  parent           Department?       @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children         Department[]      @relation("DepartmentHierarchy")
+  employees        Employee[]
+  purchaseRequests PurchaseRequest[]
+  budgets          Budget[]
+
+  @@unique([companyId, code])
+}
+
+model Position {
+  id        String   @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees Employee[]
+
+  @@unique([companyId, code])
+}
+
+model Employee {
+  id           String           @id @default(cuid())
+  companyId    String
+  code         String
+  fullName     String
+  dob          DateTime?
+  phone        String?
+  email        String?
+  departmentId String?
+  positionId   String?
+  managerId    String?
+  hireDate     DateTime?
+  employeeType EmployeeType     @default(FULL_TIME)
+  status       MasterDataStatus @default(ACTIVE)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  department Department? @relation(fields: [departmentId], references: [id])
+  position   Position?   @relation(fields: [positionId], references: [id])
+  manager    Employee?   @relation("EmployeeManager", fields: [managerId], references: [id])
+  reports    Employee[]  @relation("EmployeeManager")
+
+  userAccount           User?
+  driverProfile         Driver?
+  managedWarehouses     Warehouse[]
+  customersManaged      Customer[]
+  goodsReceiptsReceived GoodsReceipt[]
+  repairOrders          RepairOrder[]
+  fieldServiceRequests  FieldServiceRequest[]
+  employmentContracts   EmploymentContract[]
+  attendanceRecords     AttendanceRecord[]
+  leaveRequests         LeaveRequest[]
+  payrolls              Payroll[]
+  commissionRecords     CommissionRecord[]
+  purchaseRequests      PurchaseRequest[]
+
+  @@unique([companyId, code])
+}
+
+model User {
+  id           String     @id @default(cuid())
+  companyId    String
+  employeeId   String?    @unique
+  username     String     @unique
+  email        String?    @unique
+  passwordHash String
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  employee      Employee?      @relation(fields: [employeeId], references: [id])
+  roles         UserRole[]
+  approvalSteps ApprovalStep[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            UserRole[]
+  permissions      RolePermission[]
+  approvalMatrices ApprovalMatrix[]
+  approvalSteps    ApprovalStep[]
+
+  @@unique([companyId, code])
+}
+
+model Permission {
+  id       String @id @default(cuid())
+  code     String @unique
+  resource String
+  action   String
+
+  roles RolePermission[]
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+}
+
+// =========================================================================
+// 4. MASTER DATA — Product / UOM / Vehicle Compatibility / Price
+// =========================================================================
+
+enum PriceListType {
+  PURCHASE
+  COST
+  SALE
+  DEALER
+  PROJECT
+  PROMOTION
+}
+
+model ProductCategory {
+  id        String   @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  parentId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent           ProductCategory?  @relation("ProductCategoryHierarchy", fields: [parentId], references: [id])
+  children         ProductCategory[] @relation("ProductCategoryHierarchy")
+  products         Product[]
+  warrantyPolicies WarrantyPolicy[]
+
+  @@unique([companyId, code])
+}
+
+model UnitOfMeasure {
+  id        String   @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products        Product[]
+  conversionsFrom UomConversion[] @relation("UomConversionFrom")
+  conversionsTo   UomConversion[] @relation("UomConversionTo")
+
+  @@unique([companyId, code])
+}
+
+model UomConversion {
+  id        String @id @default(cuid())
+  fromUomId String
+  toUomId   String
+  factor    Float
+
+  fromUom UnitOfMeasure @relation("UomConversionFrom", fields: [fromUomId], references: [id])
+  toUom   UnitOfMeasure @relation("UomConversionTo", fields: [toUomId], references: [id])
+}
+
+model Product {
+  id               String           @id @default(cuid())
+  companyId        String
+  code             String
+  name             String
+  tradeName        String?
+  technicalName    String?
+  categoryId       String?
+  baseUomId        String?
+  brand            String?
+  originCountry    String?
+  oemCode          String?
+  manufacturerCode String?
+  partNumber       String?
+  supersededById   String?
+  manageSerial     Boolean          @default(false)
+  manageLot        Boolean          @default(false)
+  manageExpiry     Boolean          @default(false)
+  safetyStock      Int              @default(0)
+  reorderPoint     Int              @default(0)
+  moq              Int              @default(0)
+  leadTimeDays     Int              @default(0)
+  status           MasterDataStatus @default(ACTIVE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  category ProductCategory? @relation(fields: [categoryId], references: [id])
+  baseUom  UnitOfMeasure?   @relation(fields: [baseUomId], references: [id])
+
+  supersededBy       Product?  @relation("ProductSupersession", fields: [supersededById], references: [id])
+  supersededProducts Product[] @relation("ProductSupersession")
+
+  attributes               ProductAttribute[]
+  vehicleCompatibilities   ProductVehicleCompatibility[]
+  priceListItems           PriceListItem[]
+  serialNumbers            SerialNumber[]
+  lotBatches               LotBatch[]
+  inventoryBalances        InventoryBalance[]
+  stockMovements           StockMovement[]
+  stockTransferLines       StockTransferLine[]
+  stockCountLines          StockCountLine[]
+  consignmentShipmentLines ConsignmentShipmentLine[]
+  consignmentBalances      ConsignmentBalance[]
+  consignmentSalesReports  ConsignmentSalesReport[]
+  stockRecallLines         StockRecallLine[]
+  quotationLines           QuotationLine[]
+  salesOrderLines          SalesOrderLine[]
+  stockReservations        StockReservation[]
+  salesReturnLines         SalesReturnLine[]
+  deliveryRequestLines     DeliveryRequestLine[]
+  shipmentLines            ShipmentLine[]
+  warrantyPolicies         WarrantyPolicy[]
+  warrantyRegistrations    WarrantyRegistration[]
+  purchaseRequestLines     PurchaseRequestLine[]
+  purchaseOrderLines       PurchaseOrderLine[]
+  goodsReceiptLines        GoodsReceiptLine[]
+  receiptDiscrepancies     ReceiptDiscrepancy[]
+
+  @@unique([companyId, code])
+}
+
+model ProductAttribute {
+  id        String @id @default(cuid())
+  productId String
+  name      String
+  value     String
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model VehicleModel {
+  id        String   @id @default(cuid())
+  companyId String
+  make      String
+  model     String
+  yearFrom  Int?
+  yearTo    Int?
+  engine    String?
+  fuelType  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  compatibleProducts    ProductVehicleCompatibility[]
+  warrantyRegistrations WarrantyRegistration[]
+}
+
+model ProductVehicleCompatibility {
+  id             String @id @default(cuid())
+  productId      String
+  vehicleModelId String
+
+  product      Product      @relation(fields: [productId], references: [id])
+  vehicleModel VehicleModel @relation(fields: [vehicleModelId], references: [id])
+
+  @@unique([productId, vehicleModelId])
+}
+
+model PriceList {
+  id            String        @id @default(cuid())
+  companyId     String
+  code          String
+  name          String
+  type          PriceListType
+  currency      String        @default("VND")
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  items     PriceListItem[]
+  customers Customer[]
+
+  @@unique([companyId, code])
+}
+
+model PriceListItem {
+  id          String @id @default(cuid())
+  priceListId String
+  productId   String
+  unitPrice   Int
+  currency    String @default("VND")
+  minQty      Float  @default(0)
+
+  priceList PriceList @relation(fields: [priceListId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+}
+
+// =========================================================================
+// 5. PARTNER MASTER — Supplier / Customer / Dealer
+// =========================================================================
+
+enum SupplierType {
+  FOREIGN_MANUFACTURER
+  SUPPLIER
+  ENTRUSTED_IMPORT_UNIT
+  CARRIER
+  SERVICE_PROVIDER
+}
+
+enum CustomerType {
+  DEALER
+  GARAGE
+  DISTRIBUTOR
+  ENTERPRISE
+  RETAIL
+}
+
+enum CustomerSegment {
+  VIP
+  A
+  B
+  C
+  INACTIVE
+}
+
+enum DealerTier {
+  PLATINUM
+  GOLD
+  SILVER
+  STANDARD
+}
+
+model Supplier {
+  id             String           @id @default(cuid())
+  companyId      String
+  code           String
+  name           String
+  type           SupplierType
+  country        String?
+  taxCode        String?
+  contactName    String?
+  phone          String?
+  email          String?
+  paymentTerm    String?
+  currency       String           @default("VND")
+  contractNumber String?
+  feePolicy      String?
+  status         MasterDataStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  purchaseOrdersAsSupplier       PurchaseOrder[]   @relation("PurchaseOrderSupplier")
+  purchaseOrdersAsEntrustedUnit  PurchaseOrder[]   @relation("PurchaseOrderEntrustedImportUnit")
+  importShipmentsAsSupplier      ImportShipment[]  @relation("ImportShipmentSupplier")
+  importShipmentsAsEntrustedUnit ImportShipment[]  @relation("ImportShipmentEntrustedImportUnit")
+  supplierInvoices               SupplierInvoice[]
+
+  @@unique([companyId, code])
+}
+
+model Customer {
+  id             String           @id @default(cuid())
+  companyId      String
+  code           String
+  name           String
+  type           CustomerType
+  taxCode        String?
+  address        String?
+  region         String?
+  contactName    String?
+  phone          String?
+  email          String?
+  segment        CustomerSegment  @default(B)
+  salesChannel   String?
+  salesRepId     String?
+  priceListId    String?
+  creditLimit    Int              @default(0)
+  creditTermDays Int              @default(0)
+  currentDebt    Int              @default(0)
+  status         MasterDataStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  salesRep  Employee?  @relation(fields: [salesRepId], references: [id])
+  priceList PriceList? @relation(fields: [priceListId], references: [id])
+
+  dealerProfile              DealerProfile?
+  quotations                 Quotation[]
+  salesOrders                SalesOrder[]
+  salesReturns               SalesReturn[]
+  stockTransfersAsDealer     StockTransfer[]
+  consignmentAgreements      ConsignmentAgreement[]
+  consignmentShipments       ConsignmentShipment[]
+  consignmentBalances        ConsignmentBalance[]
+  consignmentSalesReports    ConsignmentSalesReport[]
+  consignmentReconciliations ConsignmentReconciliation[]
+  stockRecalls               StockRecall[]
+  deliveryRequests           DeliveryRequest[]
+  warrantyRegistrations      WarrantyRegistration[]
+  warrantyClaims             WarrantyClaim[]
+  coreReturns                CoreReturn[]
+  fieldServiceRequests       FieldServiceRequest[]
+  customerInvoices           CustomerInvoice[]
+
+  @@unique([companyId, code])
+}
+
+model DealerProfile {
+  id               String     @id @default(cuid())
+  customerId       String     @unique
+  tier             DealerTier @default(STANDARD)
+  region           String?
+  contractNumber   String?
+  contractStart    DateTime?
+  contractEnd      DateTime?
+  committedRevenue Int        @default(0)
+  discountPolicy   String?
+
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+// =========================================================================
+// 6. WAREHOUSE & LOCATION
+// =========================================================================
+
+enum WarehouseType {
+  CENTRAL
+  BRANCH
+  CONSIGNMENT
+  WARRANTY
+  DEFECTIVE
+  QC
+  IN_TRANSIT
+  TECHNICIAN
+  DEMO
+}
+
+enum StorageLocationType {
+  ZONE
+  RACK
+  LEVEL
+  BIN
+}
+
+model Warehouse {
+  id        String           @id @default(cuid())
+  companyId String
+  branchId  String?
+  code      String
+  name      String
+  type      WarehouseType
+  address   String?
+  managerId String?
+  status    MasterDataStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  branch  Branch?   @relation(fields: [branchId], references: [id])
+  manager Employee? @relation(fields: [managerId], references: [id])
+
+  storageLocations     StorageLocation[]
+  serialNumbers        SerialNumber[]
+  inventoryBalances    InventoryBalance[]
+  stockMovements       StockMovement[]
+  stockTransfersFrom   StockTransfer[]       @relation("StockTransferFromWarehouse")
+  stockTransfersTo     StockTransfer[]       @relation("StockTransferToWarehouse")
+  stockCounts          StockCount[]
+  consignmentShipments ConsignmentShipment[]
+  purchaseRequests     PurchaseRequest[]
+  goodsReceipts        GoodsReceipt[]
+  shipments            Shipment[]
+
+  @@unique([companyId, code])
+}
+
+model StorageLocation {
+  id          String              @id @default(cuid())
+  warehouseId String
+  parentId    String?
+  code        String
+  type        StorageLocationType
+  capacity    Float?
+
+  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
+  parent        StorageLocation?  @relation("StorageLocationHierarchy", fields: [parentId], references: [id])
+  children      StorageLocation[] @relation("StorageLocationHierarchy")
+  serialNumbers SerialNumber[]
+}
+
+// =========================================================================
+// 7. PROCUREMENT & ENTRUSTED IMPORT
+// =========================================================================
+
+enum PurchaseRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CONVERTED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT_SUPPLIER
+  CONFIRMED
+  SHIPPING
+  PARTIALLY_RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum ImportShipmentStatus {
+  WAITING_SUPPLIER
+  READY_TO_SHIP
+  SHIPPING
+  ARRIVED_PORT
+  CUSTOMS_PROCESSING
+  WAREHOUSE_RECEIVING
+  COMPLETED
+}
+
+enum ImportDocumentType {
+  COMMERCIAL_INVOICE
+  PACKING_LIST
+  BILL_OF_LADING
+  CERTIFICATE_OF_ORIGIN
+  CUSTOMS_DECLARATION
+  HANDOVER_REPORT
+}
+
+enum LandedCostType {
+  PURCHASE_PRICE
+  ENTRUSTED_FEE
+  INTL_FREIGHT
+  DOMESTIC_FREIGHT
+  INSURANCE
+  IMPORT_TAX
+  HANDLING
+  OTHER
+}
+
+enum AllocationMethod {
+  BY_VALUE
+  BY_QTY
+  BY_WEIGHT
+  BY_VOLUME
+}
+
+enum QcResult {
+  PASS
+  REJECT
+  CONDITIONAL_PASS
+}
+
+enum DiscrepancyType {
+  SHORT
+  OVER
+  WRONG_ITEM
+  DAMAGED
+}
+
+enum GoodsReceiptStatus {
+  DRAFT
+  COMPLETED
+}
+
+model PurchaseRequest {
+  id            String                @id @default(cuid())
+  companyId     String
+  code          String
+  requestedById String
+  departmentId  String?
+  warehouseId   String?
+  reason        String?
+  priority      String?
+  status        PurchaseRequestStatus @default(DRAFT)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  requestedBy Employee    @relation(fields: [requestedById], references: [id])
+  department  Department? @relation(fields: [departmentId], references: [id])
+  warehouse   Warehouse?  @relation(fields: [warehouseId], references: [id])
+
+  lines          PurchaseRequestLine[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([companyId, code])
+}
+
+model PurchaseRequestLine {
+  id             String    @id @default(cuid())
+  prId           String
+  productId      String
+  uomId          String?
+  qty            Float
+  estimatedPrice Int
+  currency       String    @default("VND")
+  neededDate     DateTime?
+
+  purchaseRequest PurchaseRequest @relation(fields: [prId], references: [id])
+  product         Product         @relation(fields: [productId], references: [id])
+}
+
+model PurchaseOrder {
+  id                    String              @id @default(cuid())
+  companyId             String
+  code                  String
+  prId                  String?
+  supplierId            String
+  entrustedImportUnitId String?
+  currency              String              @default("VND")
+  exchangeRate          Float               @default(1)
+  paymentTerm           String?
+  incoterm              String?
+  expectedDeliveryDate  DateTime?
+  status                PurchaseOrderStatus @default(DRAFT)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  purchaseRequest     PurchaseRequest? @relation(fields: [prId], references: [id])
+  supplier            Supplier         @relation("PurchaseOrderSupplier", fields: [supplierId], references: [id])
+  entrustedImportUnit Supplier?        @relation("PurchaseOrderEntrustedImportUnit", fields: [entrustedImportUnitId], references: [id])
+
+  lines           PurchaseOrderLine[]
+  importShipments ImportShipment[]
+  goodsReceipts   GoodsReceipt[]
+
+  @@unique([companyId, code])
+}
+
+model PurchaseOrderLine {
+  id           String @id @default(cuid())
+  poId         String
+  productId    String
+  qty          Float
+  unitPrice    Int
+  discount     Int    @default(0)
+  tax          Int    @default(0)
+  totalAmount  Int
+  qtyReceived  Float  @default(0)
+  qtyRemaining Float  @default(0)
+
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id])
+  product       Product       @relation(fields: [productId], references: [id])
+
+  landedCostAllocations LandedCostAllocation[]
+  goodsReceiptLines     GoodsReceiptLine[]
+}
+
+model ImportShipment {
+  id                    String               @id @default(cuid())
+  companyId             String
+  code                  String
+  poId                  String
+  supplierId            String
+  entrustedImportUnitId String?
+  carrierId             String?
+  eta                   DateTime?
+  etd                   DateTime?
+  actualArrivalDate     DateTime?
+  status                ImportShipmentStatus @default(WAITING_SUPPLIER)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  purchaseOrder       PurchaseOrder @relation(fields: [poId], references: [id])
+  supplier            Supplier      @relation("ImportShipmentSupplier", fields: [supplierId], references: [id])
+  entrustedImportUnit Supplier?     @relation("ImportShipmentEntrustedImportUnit", fields: [entrustedImportUnitId], references: [id])
+  carrier             Carrier?      @relation(fields: [carrierId], references: [id])
+
+  documents     ImportShipmentDocument[]
+  landedCosts   LandedCost[]
+  goodsReceipts GoodsReceipt[]
+
+  @@unique([companyId, code])
+}
+
+model ImportShipmentDocument {
+  id         String             @id @default(cuid())
+  shipmentId String
+  type       ImportDocumentType
+  fileUrl    String?
+  receivedAt DateTime?
+
+  shipment ImportShipment @relation(fields: [shipmentId], references: [id])
+}
+
+model LandedCost {
+  id               String           @id @default(cuid())
+  companyId        String
+  shipmentId       String
+  costType         LandedCostType
+  amount           Int
+  currency         String           @default("VND")
+  allocationMethod AllocationMethod @default(BY_VALUE)
+  createdAt        DateTime         @default(now())
+
+  shipment    ImportShipment         @relation(fields: [shipmentId], references: [id])
+  allocations LandedCostAllocation[]
+}
+
+model LandedCostAllocation {
+  id              String @id @default(cuid())
+  landedCostId    String
+  poLineId        String
+  allocatedAmount Int
+
+  landedCost LandedCost        @relation(fields: [landedCostId], references: [id])
+  poLine     PurchaseOrderLine @relation(fields: [poLineId], references: [id])
+}
+
+model GoodsReceipt {
+  id           String             @id @default(cuid())
+  companyId    String
+  code         String
+  warehouseId  String
+  poId         String
+  shipmentId   String?
+  receivedById String?
+  receivedAt   DateTime           @default(now())
+  status       GoodsReceiptStatus @default(DRAFT)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  warehouse  Warehouse       @relation(fields: [warehouseId], references: [id])
+  po         PurchaseOrder   @relation(fields: [poId], references: [id])
+  shipment   ImportShipment? @relation(fields: [shipmentId], references: [id])
+  receivedBy Employee?       @relation(fields: [receivedById], references: [id])
+
+  lines         GoodsReceiptLine[]
+  discrepancies ReceiptDiscrepancy[]
+
+  @@unique([companyId, code])
+}
+
+model GoodsReceiptLine {
+  id          String   @id @default(cuid())
+  receiptId   String
+  poLineId    String
+  productId   String
+  serialId    String?
+  lotId       String?
+  qtyOrdered  Float
+  qtyReceived Float
+  qcResult    QcResult @default(PASS)
+
+  receipt GoodsReceipt      @relation(fields: [receiptId], references: [id])
+  poLine  PurchaseOrderLine @relation(fields: [poLineId], references: [id])
+  product Product           @relation(fields: [productId], references: [id])
+  serial  SerialNumber?     @relation(fields: [serialId], references: [id])
+  lot     LotBatch?         @relation(fields: [lotId], references: [id])
+}
+
+model ReceiptDiscrepancy {
+  id        String          @id @default(cuid())
+  receiptId String
+  productId String
+  type      DiscrepancyType
+  qty       Float
+  note      String?
+
+  receipt GoodsReceipt @relation(fields: [receiptId], references: [id])
+  product Product      @relation(fields: [productId], references: [id])
+}
+
+// =========================================================================
+// 8. INVENTORY & WAREHOUSE OPERATIONS
+// =========================================================================
+
+enum SerialStatus {
+  IN_STOCK
+  RESERVED
+  SOLD
+  CONSIGNED
+  IN_WARRANTY
+  DEFECTIVE
+  RETURNED
+}
+
+enum StockMovementType {
+  RECEIPT
+  ISSUE
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  CONSIGNMENT_OUT
+  CONSIGNMENT_RETURN
+  WARRANTY_OUT
+  WARRANTY_IN
+}
+
+enum StockTransferStatus {
+  PENDING_APPROVAL
+  APPROVED
+  PICKING
+  SHIPPING
+  RECEIVED
+  COMPLETED
+}
+
+enum StockCountStatus {
+  DRAFT
+  COUNTING
+  SUBMITTED
+  APPROVED
+  CLOSED
+}
+
+model SerialNumber {
+  id                     String       @id @default(cuid())
+  companyId              String
+  productId              String
+  serialNo               String       @unique
+  warehouseId            String?
+  locationId             String?
+  lotId                  String?
+  status                 SerialStatus @default(IN_STOCK)
+  currentOwnerCustomerId String?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  product   Product          @relation(fields: [productId], references: [id])
+  warehouse Warehouse?       @relation(fields: [warehouseId], references: [id])
+  location  StorageLocation? @relation(fields: [locationId], references: [id])
+  lot       LotBatch?        @relation(fields: [lotId], references: [id])
+
+  goodsReceiptLines        GoodsReceiptLine[]
+  stockTransferLines       StockTransferLine[]
+  consignmentShipmentLines ConsignmentShipmentLine[]
+  consignmentBalances      ConsignmentBalance[]
+  consignmentSalesReports  ConsignmentSalesReport[]
+  stockRecallLines         StockRecallLine[]
+  salesReturnLines         SalesReturnLine[]
+  stockReservations        StockReservation[]
+  deliveryRequestLines     DeliveryRequestLine[]
+  warrantyRegistrations    WarrantyRegistration[]
+  coreReturnsAsNew         CoreReturn[]              @relation("CoreReturnNewSerial")
+  coreReturnsAsOld         CoreReturn[]              @relation("CoreReturnOldSerial")
+}
+
+model LotBatch {
+  id               String    @id @default(cuid())
+  companyId        String
+  productId        String
+  lotNo            String
+  manufactureDate  DateTime?
+  expiryDate       DateTime?
+  manufacturerName String?
+  createdAt        DateTime  @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+
+  serialNumbers            SerialNumber[]
+  inventoryBalances        InventoryBalance[]
+  stockMovements           StockMovement[]
+  goodsReceiptLines        GoodsReceiptLine[]
+  stockTransferLines       StockTransferLine[]
+  consignmentShipmentLines ConsignmentShipmentLine[]
+  deliveryRequestLines     DeliveryRequestLine[]
+
+  @@unique([companyId, productId, lotNo])
+}
+
+model InventoryBalance {
+  id             String   @id @default(cuid())
+  companyId      String
+  warehouseId    String
+  productId      String
+  lotId          String?
+  onHandQty      Float    @default(0)
+  reservedQty    Float    @default(0)
+  availableQty   Float    @default(0)
+  inTransitQty   Float    @default(0)
+  consignmentQty Float    @default(0)
+  warrantyQty    Float    @default(0)
+  updatedAt      DateTime @updatedAt
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  lot       LotBatch? @relation(fields: [lotId], references: [id])
+
+  @@unique([warehouseId, productId, lotId])
+}
+
+model StockMovement {
+  id           String            @id @default(cuid())
+  companyId    String
+  warehouseId  String
+  productId    String
+  serialId     String?
+  lotId        String?
+  type         StockMovementType
+  qty          Float
+  refType      String?
+  refId        String?
+  movementDate DateTime          @default(now())
+  createdAt    DateTime          @default(now())
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  lot       LotBatch? @relation(fields: [lotId], references: [id])
+}
+
+model StockTransfer {
+  id              String              @id @default(cuid())
+  companyId       String
+  code            String
+  fromWarehouseId String
+  toWarehouseId   String?
+  toCustomerId    String?
+  status          StockTransferStatus @default(PENDING_APPROVAL)
+  requestedAt     DateTime            @default(now())
+  shippedAt       DateTime?
+  receivedAt      DateTime?
+
+  fromWarehouse Warehouse  @relation("StockTransferFromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse? @relation("StockTransferToWarehouse", fields: [toWarehouseId], references: [id])
+  toCustomer    Customer?  @relation(fields: [toCustomerId], references: [id])
+
+  lines StockTransferLine[]
+
+  @@unique([companyId, code])
+}
+
+model StockTransferLine {
+  id          String  @id @default(cuid())
+  transferId  String
+  productId   String
+  serialId    String?
+  lotId       String?
+  qty         Float
+  qtyReceived Float   @default(0)
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id])
+  product  Product       @relation(fields: [productId], references: [id])
+  serial   SerialNumber? @relation(fields: [serialId], references: [id])
+  lot      LotBatch?     @relation(fields: [lotId], references: [id])
+}
+
+model StockCount {
+  id          String           @id @default(cuid())
+  companyId   String
+  warehouseId String
+  code        String
+  status      StockCountStatus @default(DRAFT)
+  countedAt   DateTime?
+  createdAt   DateTime         @default(now())
+
+  warehouse Warehouse        @relation(fields: [warehouseId], references: [id])
+  lines     StockCountLine[]
+
+  @@unique([companyId, code])
+}
+
+model StockCountLine {
+  id           String @id @default(cuid())
+  stockCountId String
+  productId    String
+  systemQty    Float
+  actualQty    Float
+  varianceQty  Float
+
+  stockCount StockCount @relation(fields: [stockCountId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id])
+}
+
+// =========================================================================
+// 9. DISTRIBUTION & CONSIGNMENT (DEALER)
+// =========================================================================
+
+enum ReconciliationCycle {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ConsignmentShipmentStatus {
+  REQUESTED
+  APPROVED
+  PICKING
+  DELIVERED
+  CONFIRMED
+}
+
+enum ConsignmentSalesSource {
+  PORTAL
+  MOBILE
+  EXCEL
+  API
+}
+
+enum ReconciliationStatus {
+  OPEN
+  RESOLVED
+  DISPUTED
+}
+
+enum StockRecallStatus {
+  REQUESTED
+  APPROVED
+  PICKED_UP
+  RECEIVED
+  CLOSED
+}
+
+model ConsignmentAgreement {
+  id                  String              @id @default(cuid())
+  companyId           String
+  dealerId            String
+  contractNo          String?
+  effectiveFrom       DateTime?
+  effectiveTo         DateTime?
+  reconciliationCycle ReconciliationCycle @default(MONTHLY)
+  maxStockValue       Int                 @default(0)
+  createdAt           DateTime            @default(now())
+
+  dealer Customer @relation(fields: [dealerId], references: [id])
+}
+
+model ConsignmentShipment {
+  id              String                    @id @default(cuid())
+  companyId       String
+  code            String
+  dealerId        String
+  fromWarehouseId String
+  status          ConsignmentShipmentStatus @default(REQUESTED)
+  shippedAt       DateTime?
+  receivedAt      DateTime?
+  createdAt       DateTime                  @default(now())
+
+  dealer        Customer  @relation(fields: [dealerId], references: [id])
+  fromWarehouse Warehouse @relation(fields: [fromWarehouseId], references: [id])
+
+  lines ConsignmentShipmentLine[]
+
+  @@unique([companyId, code])
+}
+
+model ConsignmentShipmentLine {
+  id         String  @id @default(cuid())
+  shipmentId String
+  productId  String
+  serialId   String?
+  lotId      String?
+  qty        Float
+  unitCost   Int
+
+  shipment ConsignmentShipment @relation(fields: [shipmentId], references: [id])
+  product  Product             @relation(fields: [productId], references: [id])
+  serial   SerialNumber?       @relation(fields: [serialId], references: [id])
+  lot      LotBatch?           @relation(fields: [lotId], references: [id])
+}
+
+model ConsignmentBalance {
+  id          String   @id @default(cuid())
+  companyId   String
+  dealerId    String
+  productId   String
+  serialId    String?
+  qtyShipped  Float    @default(0)
+  qtySold     Float    @default(0)
+  qtyReturned Float    @default(0)
+  qtyOnHand   Float    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  dealer  Customer      @relation(fields: [dealerId], references: [id])
+  product Product       @relation(fields: [productId], references: [id])
+  serial  SerialNumber? @relation(fields: [serialId], references: [id])
+
+  @@unique([dealerId, productId, serialId])
+}
+
+model ConsignmentSalesReport {
+  id              String                 @id @default(cuid())
+  companyId       String
+  dealerId        String
+  productId       String
+  serialId        String?
+  qtySold         Float
+  endCustomerName String?
+  soldAt          DateTime
+  unitPrice       Int
+  currency        String                 @default("VND")
+  reportedAt      DateTime               @default(now())
+  source          ConsignmentSalesSource @default(PORTAL)
+
+  dealer  Customer      @relation(fields: [dealerId], references: [id])
+  product Product       @relation(fields: [productId], references: [id])
+  serial  SerialNumber? @relation(fields: [serialId], references: [id])
+}
+
+model ConsignmentReconciliation {
+  id                String               @id @default(cuid())
+  companyId         String
+  dealerId          String
+  periodFrom        DateTime
+  periodTo          DateTime
+  systemQty         Float
+  dealerReportedQty Float
+  varianceQty       Float
+  status            ReconciliationStatus @default(OPEN)
+  createdAt         DateTime             @default(now())
+
+  dealer Customer @relation(fields: [dealerId], references: [id])
+}
+
+model StockRecall {
+  id          String            @id @default(cuid())
+  companyId   String
+  dealerId    String
+  code        String
+  reason      String?
+  status      StockRecallStatus @default(REQUESTED)
+  requestedAt DateTime          @default(now())
+  completedAt DateTime?
+
+  dealer Customer          @relation(fields: [dealerId], references: [id])
+  lines  StockRecallLine[]
+
+  @@unique([companyId, code])
+}
+
+model StockRecallLine {
+  id        String  @id @default(cuid())
+  recallId  String
+  productId String
+  serialId  String?
+  qty       Float
+
+  recall  StockRecall   @relation(fields: [recallId], references: [id])
+  product Product       @relation(fields: [productId], references: [id])
+  serial  SerialNumber? @relation(fields: [serialId], references: [id])
+}
+
+// =========================================================================
+// 10. SALES ORDER & CUSTOMER
+// =========================================================================
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  EXPIRED
+  REJECTED
+}
+
+enum SalesChannel {
+  ONLINE
+  OFFLINE
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  CONFIRMED
+  ALLOCATED
+  PICKING
+  DELIVERED
+  INVOICED
+  PAID
+  CLOSED
+  CANCELLED
+}
+
+enum SalesReturnStatus {
+  REQUESTED
+  APPROVED
+  RECEIVED
+  QC_DONE
+  REFUNDED
+  REJECTED
+}
+
+model Quotation {
+  id         String          @id @default(cuid())
+  companyId  String
+  code       String
+  customerId String
+  salesRepId String?
+  validUntil DateTime?
+  status     QuotationStatus @default(DRAFT)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  lines       QuotationLine[]
+  salesOrders SalesOrder[]
+
+  @@unique([companyId, code])
+}
+
+model QuotationLine {
+  id          String @id @default(cuid())
+  quotationId String
+  productId   String
+  qty         Float
+  unitPrice   Int
+  discount    Int    @default(0)
+  tax         Int    @default(0)
+  totalAmount Int
+
+  quotation Quotation @relation(fields: [quotationId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+}
+
+model SalesOrder {
+  id                   String           @id @default(cuid())
+  companyId            String
+  code                 String
+  quotationId          String?
+  customerId           String
+  salesRepId           String?
+  salesChannel         SalesChannel     @default(OFFLINE)
+  deliveryAddress      String?
+  paymentTerm          String?
+  confirmedAt          DateTime?
+  expectedDeliveryDate DateTime?
+  status               SalesOrderStatus @default(DRAFT)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  quotation Quotation? @relation(fields: [quotationId], references: [id])
+  customer  Customer   @relation(fields: [customerId], references: [id])
+
+  lines                 SalesOrderLine[]
+  salesReturns          SalesReturn[]
+  warrantyRegistrations WarrantyRegistration[]
+  commissionRecords     CommissionRecord[]
+  customerInvoices      CustomerInvoice[]
+
+  @@unique([companyId, code])
+}
+
+model SalesOrderLine {
+  id           String @id @default(cuid())
+  soId         String
+  productId    String
+  qty          Float
+  unitPrice    Int
+  discount     Int    @default(0)
+  tax          Int    @default(0)
+  totalAmount  Int
+  qtyDelivered Float  @default(0)
+  qtyReserved  Float  @default(0)
+
+  salesOrder SalesOrder @relation(fields: [soId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id])
+
+  reservations StockReservation[]
+}
+
+model StockReservation {
+  id          String    @id @default(cuid())
+  soLineId    String
+  warehouseId String
+  productId   String
+  serialId    String?
+  qty         Float
+  reservedAt  DateTime  @default(now())
+  expiresAt   DateTime?
+
+  soLine  SalesOrderLine @relation(fields: [soLineId], references: [id])
+  product Product        @relation(fields: [productId], references: [id])
+  serial  SerialNumber?  @relation(fields: [serialId], references: [id])
+}
+
+model SalesReturn {
+  id          String            @id @default(cuid())
+  companyId   String
+  code        String
+  soId        String
+  customerId  String
+  status      SalesReturnStatus @default(REQUESTED)
+  requestedAt DateTime          @default(now())
+
+  salesOrder SalesOrder @relation(fields: [soId], references: [id])
+  customer   Customer   @relation(fields: [customerId], references: [id])
+
+  lines       SalesReturnLine[]
+  rmaRequests RmaRequest[]
+
+  @@unique([companyId, code])
+}
+
+model SalesReturnLine {
+  id        String  @id @default(cuid())
+  returnId  String
+  productId String
+  serialId  String?
+  qty       Float
+  reason    String?
+
+  salesReturn SalesReturn   @relation(fields: [returnId], references: [id])
+  product     Product       @relation(fields: [productId], references: [id])
+  serial      SerialNumber? @relation(fields: [serialId], references: [id])
+}
+
+// =========================================================================
+// 11. LOGISTICS & DELIVERY
+// =========================================================================
+
+enum DeliveryRequestStatus {
+  DRAFT
+  PLANNED
+  PICKING
+  PACKED
+  ON_DELIVERY
+  DELIVERED
+  CONFIRMED
+  FAILED
+  CLOSED
+}
+
+enum DeliverySourceType {
+  SALES_ORDER
+  CONSIGNMENT_SHIPMENT
+  WARRANTY_REPLACEMENT
+  STOCK_TRANSFER
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  ON_DELIVERY
+  MAINTENANCE
+  INACTIVE
+}
+
+enum DeliveryCostType {
+  FUEL
+  TOLL
+  THIRD_PARTY_CARRIER
+  LOADING
+  OTHER
+}
+
+model DeliveryRequest {
+  id              String                @id @default(cuid())
+  companyId       String
+  code            String
+  sourceType      DeliverySourceType
+  sourceId        String
+  customerId      String?
+  deliveryAddress String?
+  requestedAt     DateTime              @default(now())
+  priority        String?
+  status          DeliveryRequestStatus @default(DRAFT)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  lines         DeliveryRequestLine[]
+  shipmentLines ShipmentLine[]
+
+  @@unique([companyId, code])
+}
+
+model DeliveryRequestLine {
+  id        String  @id @default(cuid())
+  requestId String
+  productId String
+  serialId  String?
+  lotId     String?
+  qty       Float
+
+  request DeliveryRequest @relation(fields: [requestId], references: [id])
+  product Product         @relation(fields: [productId], references: [id])
+  serial  SerialNumber?   @relation(fields: [serialId], references: [id])
+  lot     LotBatch?       @relation(fields: [lotId], references: [id])
+}
+
+model Vehicle {
+  id          String        @id @default(cuid())
+  companyId   String
+  plateNumber String        @unique
+  type        String?
+  capacity    Float?
+  status      VehicleStatus @default(AVAILABLE)
+  createdAt   DateTime      @default(now())
+
+  shipments Shipment[]
+}
+
+model Driver {
+  id            String    @id @default(cuid())
+  companyId     String
+  employeeId    String    @unique
+  licenseNo     String?
+  licenseType   String?
+  licenseExpiry DateTime?
+
+  employee  Employee   @relation(fields: [employeeId], references: [id])
+  shipments Shipment[]
+}
+
+model Carrier {
+  id          String   @id @default(cuid())
+  companyId   String
+  code        String
+  name        String
+  contractNo  String?
+  serviceArea String?
+  createdAt   DateTime @default(now())
+
+  shipments       Shipment[]
+  importShipments ImportShipment[]
+
+  @@unique([companyId, code])
+}
+
+model Shipment {
+  id          String                @id @default(cuid())
+  companyId   String
+  code        String
+  warehouseId String
+  vehicleId   String?
+  driverId    String?
+  carrierId   String?
+  shippedAt   DateTime?
+  status      DeliveryRequestStatus @default(DRAFT)
+  createdAt   DateTime              @default(now())
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  vehicle   Vehicle?  @relation(fields: [vehicleId], references: [id])
+  driver    Driver?   @relation(fields: [driverId], references: [id])
+  carrier   Carrier?  @relation(fields: [carrierId], references: [id])
+
+  lines            ShipmentLine[]
+  proofsOfDelivery ProofOfDelivery[]
+  costs            DeliveryCost[]
+
+  @@unique([companyId, code])
+}
+
+model ShipmentLine {
+  id                String @id @default(cuid())
+  shipmentId        String
+  deliveryRequestId String
+  productId         String
+  qty               Float
+
+  shipment        Shipment        @relation(fields: [shipmentId], references: [id])
+  deliveryRequest DeliveryRequest @relation(fields: [deliveryRequestId], references: [id])
+  product         Product         @relation(fields: [productId], references: [id])
+}
+
+model ProofOfDelivery {
+  id             String   @id @default(cuid())
+  shipmentId     String
+  receivedByName String?
+  receivedAt     DateTime @default(now())
+  signatureUrl   String?
+  photoUrl       String?
+  note           String?
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id])
+}
+
+model DeliveryCost {
+  id         String           @id @default(cuid())
+  shipmentId String
+  type       DeliveryCostType
+  amount     Int
+  currency   String           @default("VND")
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id])
+}
+
+// =========================================================================
+// 12. WARRANTY, RMA & FIELD SERVICE
+// =========================================================================
+
+enum WarrantyClaimStatus {
+  OPEN
+  INSPECTING
+  APPROVED
+  REJECTED
+  REPAIRING
+  REPLACED
+  CLOSED
+}
+
+enum RmaStatus {
+  REQUESTED
+  APPROVED
+  RECEIVED
+  QC_DONE
+  REPAIRED
+  REPLACED
+  REJECTED
+}
+
+enum CoreReturnStatus {
+  PENDING
+  RETURNED
+  OVERDUE
+  LOST
+}
+
+enum RepairOrderStatus {
+  RECEIVED
+  DIAGNOSING
+  REPAIRING
+  TESTING
+  COMPLETED
+  RETURNED
+}
+
+enum FieldServiceType {
+  INSTALLATION
+  MAINTENANCE
+  REPAIR
+}
+
+enum FieldServiceStatus {
+  REQUESTED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model WarrantyPolicy {
+  id             String  @id @default(cuid())
+  companyId      String
+  productId      String?
+  categoryId     String?
+  durationMonths Int
+  conditions     String?
+
+  product  Product?         @relation(fields: [productId], references: [id])
+  category ProductCategory? @relation(fields: [categoryId], references: [id])
+}
+
+model WarrantyRegistration {
+  id             String    @id @default(cuid())
+  companyId      String
+  productId      String
+  serialId       String?
+  customerId     String
+  soId           String?
+  vehicleModelId String?
+  soldAt         DateTime?
+  warrantyStart  DateTime
+  warrantyEnd    DateTime
+
+  product      Product       @relation(fields: [productId], references: [id])
+  serial       SerialNumber? @relation(fields: [serialId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  salesOrder   SalesOrder?   @relation(fields: [soId], references: [id])
+  vehicleModel VehicleModel? @relation(fields: [vehicleModelId], references: [id])
+
+  claims WarrantyClaim[]
+}
+
+model WarrantyClaim {
+  id             String              @id @default(cuid())
+  companyId      String
+  code           String
+  registrationId String
+  customerId     String
+  description    String?
+  attachmentUrls String?
+  status         WarrantyClaimStatus @default(OPEN)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  registration WarrantyRegistration @relation(fields: [registrationId], references: [id])
+  customer     Customer             @relation(fields: [customerId], references: [id])
+
+  rmaRequests  RmaRequest[]
+  repairOrders RepairOrder[]
+
+  @@unique([companyId, code])
+}
+
+model RmaRequest {
+  id            String    @id @default(cuid())
+  companyId     String
+  code          String
+  claimId       String?
+  salesReturnId String?
+  status        RmaStatus @default(REQUESTED)
+  createdAt     DateTime  @default(now())
+
+  claim       WarrantyClaim? @relation(fields: [claimId], references: [id])
+  salesReturn SalesReturn?   @relation(fields: [salesReturnId], references: [id])
+
+  @@unique([companyId, code])
+}
+
+model CoreReturn {
+  id          String           @id @default(cuid())
+  companyId   String
+  newSerialId String
+  oldSerialId String?
+  customerId  String
+  deliveredAt DateTime         @default(now())
+  dueReturnAt DateTime?
+  returnedAt  DateTime?
+  status      CoreReturnStatus @default(PENDING)
+
+  newSerial SerialNumber  @relation("CoreReturnNewSerial", fields: [newSerialId], references: [id])
+  oldSerial SerialNumber? @relation("CoreReturnOldSerial", fields: [oldSerialId], references: [id])
+  customer  Customer      @relation(fields: [customerId], references: [id])
+}
+
+model RepairOrder {
+  id           String            @id @default(cuid())
+  companyId    String
+  claimId      String
+  technicianId String?
+  laborCost    Int               @default(0)
+  status       RepairOrderStatus @default(RECEIVED)
+  createdAt    DateTime          @default(now())
+
+  claim      WarrantyClaim @relation(fields: [claimId], references: [id])
+  technician Employee?     @relation(fields: [technicianId], references: [id])
+}
+
+model FieldServiceRequest {
+  id           String             @id @default(cuid())
+  companyId    String
+  code         String
+  customerId   String
+  technicianId String?
+  type         FieldServiceType
+  scheduledAt  DateTime?
+  status       FieldServiceStatus @default(REQUESTED)
+  createdAt    DateTime           @default(now())
+
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  technician Employee? @relation(fields: [technicianId], references: [id])
+
+  @@unique([companyId, code])
+}
+
+// =========================================================================
+// 13. FINANCE & ACCOUNTING
+// =========================================================================
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  LOCKED
+}
+
+enum PartnerType {
+  SUPPLIER
+  CUSTOMER
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+}
+
+enum PaymentDirection {
+  IN
+  OUT
+}
+
+model Account {
+  id        String      @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  type      AccountType
+  parentId  String?
+  createdAt DateTime    @default(now())
+
+  parent   Account?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children Account[] @relation("AccountHierarchy")
+
+  journalEntryLines JournalEntryLine[]
+
+  @@unique([companyId, code])
+}
+
+model JournalEntry {
+  id          String             @id @default(cuid())
+  companyId   String
+  code        String
+  date        DateTime
+  refType     String?
+  refId       String?
+  description String?
+  status      JournalEntryStatus @default(DRAFT)
+  createdAt   DateTime           @default(now())
+
+  lines JournalEntryLine[]
+
+  @@unique([companyId, code])
+}
+
+model JournalEntryLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  debit          Int          @default(0)
+  credit         Int          @default(0)
+  currency       String       @default("VND")
+  exchangeRate   Float        @default(1)
+  costCenterId   String?
+  partnerType    PartnerType?
+  partnerId      String?
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id])
+  account      Account      @relation(fields: [accountId], references: [id])
+  costCenter   CostCenter?  @relation(fields: [costCenterId], references: [id])
+}
+
+model CostCenter {
+  id        String   @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  createdAt DateTime @default(now())
+
+  journalEntryLines JournalEntryLine[]
+  budgets           Budget[]
+
+  @@unique([companyId, code])
+}
+
+model SupplierInvoice {
+  id           String        @id @default(cuid())
+  companyId    String
+  code         String
+  supplierId   String
+  poId         String?
+  currency     String        @default("VND")
+  exchangeRate Float         @default(1)
+  amount       Int
+  paidAmount   Int           @default(0)
+  dueDate      DateTime?
+  status       InvoiceStatus @default(PENDING)
+  createdAt    DateTime      @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([companyId, code])
+}
+
+model CustomerInvoice {
+  id         String        @id @default(cuid())
+  companyId  String
+  code       String
+  customerId String
+  soId       String?
+  currency   String        @default("VND")
+  amount     Int
+  paidAmount Int           @default(0)
+  dueDate    DateTime?
+  status     InvoiceStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  salesOrder SalesOrder? @relation(fields: [soId], references: [id])
+
+  @@unique([companyId, code])
+}
+
+model Payment {
+  id            String           @id @default(cuid())
+  companyId     String
+  code          String
+  direction     PaymentDirection
+  partnerType   PartnerType
+  partnerId     String
+  amount        Int
+  currency      String           @default("VND")
+  exchangeRate  Float            @default(1)
+  method        String?
+  bankAccountId String?
+  paidAt        DateTime         @default(now())
+  refType       String?
+  refId         String?
+
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+
+  @@unique([companyId, code])
+}
+
+model BankAccount {
+  id        String @id @default(cuid())
+  companyId String
+  bankName  String
+  accountNo String
+  currency  String @default("VND")
+
+  payments Payment[]
+
+  @@unique([companyId, accountNo])
+}
+
+model FixedAsset {
+  id               String   @id @default(cuid())
+  companyId        String
+  code             String
+  name             String
+  purchaseDate     DateTime
+  originalCost     Int
+  usefulLifeMonths Int
+  currentValue     Int
+
+  @@unique([companyId, code])
+}
+
+model Budget {
+  id            String  @id @default(cuid())
+  companyId     String
+  departmentId  String?
+  costCenterId  String?
+  period        String
+  category      String
+  plannedAmount Int
+  currency      String  @default("VND")
+
+  department Department? @relation(fields: [departmentId], references: [id])
+  costCenter CostCenter? @relation(fields: [costCenterId], references: [id])
+}
+
+// =========================================================================
+// 14. HRM & PAYROLL
+// =========================================================================
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  UNPAID
+  SPECIAL
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayrollStatus {
+  DRAFT
+  CONFIRMED
+  PAID
+}
+
+model EmploymentContract {
+  id         String    @id @default(cuid())
+  employeeId String
+  type       String?
+  startDate  DateTime
+  endDate    DateTime?
+  baseSalary Int
+  currency   String    @default("VND")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+}
+
+model Shift {
+  id        String @id @default(cuid())
+  companyId String
+  name      String
+  startTime String
+  endTime   String
+
+  attendanceRecords AttendanceRecord[]
+}
+
+model AttendanceRecord {
+  id         String    @id @default(cuid())
+  employeeId String
+  shiftId    String?
+  date       DateTime
+  checkIn    DateTime?
+  checkOut   DateTime?
+  otHours    Float     @default(0)
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  shift    Shift?   @relation(fields: [shiftId], references: [id])
+
+  @@unique([employeeId, date])
+}
+
+model LeaveRequest {
+  id         String      @id @default(cuid())
+  employeeId String
+  type       LeaveType
+  fromDate   DateTime
+  toDate     DateTime
+  status     LeaveStatus @default(PENDING)
+  createdAt  DateTime    @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+}
+
+model Payroll {
+  id                 String        @id @default(cuid())
+  companyId          String
+  employeeId         String
+  period             String
+  baseSalary         Int
+  allowance          Int           @default(0)
+  bonus              Int           @default(0)
+  commission         Int           @default(0)
+  otAmount           Int           @default(0)
+  insuranceDeduction Int           @default(0)
+  taxDeduction       Int           @default(0)
+  netAmount          Int
+  currency           String        @default("VND")
+  status             PayrollStatus @default(DRAFT)
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, period])
+}
+
+model CommissionRecord {
+  id         String  @id @default(cuid())
+  employeeId String
+  soId       String?
+  amount     Int
+  currency   String  @default("VND")
+  period     String
+
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  salesOrder SalesOrder? @relation(fields: [soId], references: [id])
+}
+
+// =========================================================================
+// 15. WORKFLOW / APPROVAL (cross-cutting, đa hình)
+// =========================================================================
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalStepStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+}
+
+model ApprovalMatrix {
+  id              String @id @default(cuid())
+  companyId       String
+  transactionType String
+  minAmount       Int    @default(0)
+  maxAmount       Int?
+  approverRoleId  String
+
+  approverRole Role @relation(fields: [approverRoleId], references: [id])
+}
+
+model ApprovalRequest {
+  id            String         @id @default(cuid())
+  companyId     String
+  entityType    String
+  entityId      String
+  requestedById String
+  status        ApprovalStatus @default(PENDING)
+  currentStep   Int            @default(1)
+  createdAt     DateTime       @default(now())
+
+  steps ApprovalStep[]
+}
+
+model ApprovalStep {
+  id                String             @id @default(cuid())
+  approvalRequestId String
+  stepOrder         Int
+  approverRoleId    String?
+  approverUserId    String?
+  status            ApprovalStepStatus @default(PENDING)
+  actedAt           DateTime?
+  comment           String?
+
+  approvalRequest ApprovalRequest @relation(fields: [approvalRequestId], references: [id])
+  approverRole    Role?           @relation(fields: [approverRoleId], references: [id])
+  approverUser    User?           @relation(fields: [approverUserId], references: [id])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  companyId   String
+  entityType  String
+  entityId    String
+  action      AuditAction
+  changedById String?
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime    @default(now())
+
+  changedBy User? @relation(fields: [changedById], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String
+  type      String
+  title     String
+  message   String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}

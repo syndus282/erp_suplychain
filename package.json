@@ -1,0 +1,16 @@
+{
+  "name": "erp_suplychain",
+  "private": true,
+  "scripts": {
+    "prisma:validate": "prisma validate",
+    "prisma:generate": "prisma generate",
+    "prisma:db:push": "prisma db push"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
+}
+

@@ -1,11 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { SESSION_COOKIE_NAME } from "@/modules/auth/lib/session";
+import { SESSION_COOKIE_NAME } from "@/modules/auth/lib/session-constants";
 
 // Middleware chạy Edge runtime — chỉ xác thực (có session hợp lệ hay không),
 // KHÔNG check permission chi tiết (cần Prisma/DB, không chạy được ở edge với
 // SQLite). Authorization theo Permission thực hiện trong từng route handler
 // qua requirePermission() (xem src/modules/auth/lib/permissions.ts).
+//
+// QUAN TRỌNG: import hằng số từ "./session-constants", KHÔNG từ "./session" —
+// session.ts import permissions.ts (kéo theo Prisma) để nạp permission mỗi
+// request; nếu middleware import session.ts, toàn bộ Prisma client sẽ bị kéo
+// vào bundle Edge runtime dù không dùng tới (đã từng làm bundle middleware
+// phình từ ~40kB lên ~113kB).
 
 const PUBLIC_PATHS = ["/login", "/api/auth/login"];
 

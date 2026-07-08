@@ -15,7 +15,7 @@
 | 4 | Distribution & Consignment | ✅ Hoàn thành | Branch `claude/phase-4-distribution` (kế thừa Phase 3) |
 | 5 | Sales Order & Customer | ✅ Hoàn thành | Branch `claude/phase-5-sales` (kế thừa Phase 4) |
 | 6 | Logistics & Delivery | ✅ Hoàn thành | Branch `claude/phase-6-logistics` (kế thừa Phase 5) |
-| 7 | Warranty/RMA/Field Service | ⬜ | |
+| 7 | Warranty/RMA/Field Service | ✅ Hoàn thành | Branch `claude/phase-7-warranty` (kế thừa Phase 6) |
 | 8 | Finance & Accounting | ⬜ | |
 | 9 | HRM & Payroll | ⬜ | |
 | 10 | Workflow/Approval hoàn chỉnh | ⬜ | |
@@ -313,6 +313,104 @@ delivery-request/shipment/delivery-cost).
 
 ---
 
+Phase 7 - Warranty, RMA & Field Service: HOÀN THÀNH trên branch
+`claude/phase-7-warranty` (kế thừa từ Phase 6).
+
+Đã xong:
+- Warranty Policy (crud-factory) — thời hạn bảo hành theo sản phẩm hoặc theo
+  nhóm hàng (ưu tiên theo sản phẩm trước).
+- Warranty Registration: kích hoạt bảo hành thủ công (đủ cho cả 3 nguồn "khi
+  bán/khi lắp đặt/khi khách đăng ký" theo business-spec mục 5) — tự tính
+  `warrantyEnd = soldAt + WarrantyPolicy.durationMonths`; chặn đăng ký nếu
+  sản phẩm chưa có chính sách bảo hành nào.
+- Warranty Claim: tạo (chặn nếu đã hết hạn bảo hành) → `inspect` → `approve`/
+  `reject` → `repair` (tự tạo `RepairOrder` mới) HOẶC `replace` (đổi hàng mới
+  — xuất kho serial mới qua `recordStockMovement` type `WARRANTY_OUT`, đánh
+  dấu serial mới `SOLD` gán cho khách, đánh dấu serial cũ `DEFECTIVE`) →
+  `close`.
+- RMA (Return Material Authorization): tạo từ Warranty Claim HOẶC từ Sales
+  Return (`refine` bắt buộc chọn đúng 1 nguồn) → `approve`/`reject` →
+  `receive` (nhập kho qua `recordStockMovement` type `WARRANTY_IN`, đánh dấu
+  serial `RETURNED`) → `qc` → `repair`/`replace` (trạng thái cuối, chưa có
+  side-effect xuất kho thêm — xem "Còn thiếu").
+- Core Return: theo dõi hàng cũ (ECU/Turbo...) phải thu hồi sau khi đã giao
+  hàng mới — tạo → `receive`/`overdue`/`lost`. Chưa có job tự động chuyển
+  PENDING→OVERDUE theo mốc 7/15/30 ngày (xem "Còn thiếu").
+- Repair Order: tạo tự động khi Warranty Claim chọn "Sửa chữa" (không có form
+  tạo tay riêng) → action `advance` di chuyển qua đúng 6 bước cố định
+  (RECEIVED→DIAGNOSING→REPAIRING→TESTING→COMPLETED→RETURNED), không cho nhảy
+  cóc/lùi bước.
+- Field Service Request: tạo (Lắp đặt/Bảo trì/Sửa chữa) → `assign` (gán kỹ
+  thuật viên = Employee có sẵn) → `start` → `complete`/`cancel`. Điều phối
+  chỉ thủ công (người dùng tự chọn kỹ thuật viên), chưa có gợi ý theo
+  khoảng cách/kỹ năng/lịch rảnh (mục 17).
+- Đã kiểm thử THẬT qua curl full-cycle: tạo chính sách bảo hành 12 tháng →
+  đăng ký bảo hành cho 1 serial → tạo claim → inspect → approve → replace
+  bằng serial khác (xác nhận: onHand giảm 2→1, serial mới `SOLD`, serial cũ
+  `DEFECTIVE`) → close claim → tạo RMA từ claim đó → approve → receive (xác
+  nhận: onHand tăng 1→2 trở lại, serial cũ `RETURNED`) → qc → tạo Core Return
+  → receive → tạo Field Service Request → assign → start → complete → tạo
+  claim thứ 2 → repair (tự tạo Repair Order) → advance đủ 5 lần đến
+  `RETURNED`. Playwright xác nhận UI cả 7 trang. `npm run build`/
+  `type-check`/`lint` đều sạch.
+- **Sửa 1 lỗi nghiêm trọng phát hiện khi test UI thật (không phải lỗi riêng
+  Phase 7, mà là lỗi kiến trúc tích lũy từ Phase 1 lộ ra ở Phase 7):** JWT
+  session nhúng thẳng toàn bộ mảng `permissions` (đến Phase 7 là 164 quyền)
+  — cookie vượt quá giới hạn ~4096 byte/cookie mà trình duyệt cho phép (RFC
+  6265), khiến trình duyệt (và cả `curl -c` cookie-jar) LẶNG LẼ từ chối lưu
+  cookie. Hậu quả: đăng nhập trả về 200 (có vẻ thành công) nhưng session
+  không bao giờ được lưu, mọi trang sau đó bị đá về `/login` — bug này tồn
+  tại tiềm ẩn từ Phase 1 nhưng chỉ đủ lớn để vượt ngưỡng ở Phase 7 (111 quyền
+  ở Phase 5 = ~3.7KB, an toàn; 164 quyền ở Phase 7 = ~5.1KB, vượt ngưỡng).
+  **Cách sửa**: tách JWT thành 2 phần — `SessionTokenPayload` (chỉ
+  sub/companyId/username/employeeId/roles, được KÝ vào cookie, luôn nhỏ) và
+  `SessionPayload` (thêm `permissions`, được `getCurrentSession()` nạp lại
+  từ DB ở MỖI request qua `loadUserPermissions()` thay vì giải mã từ JWT).
+  Tác dụng phụ tích cực: đổi quyền của user có hiệu lực ngay, không cần đăng
+  nhập lại như trước. Đổi lại: mỗi request tốn thêm 1 query nạp permission —
+  chấp nhận được ở quy mô hiện tại.
+- **Sửa tiếp 1 hệ quả của bản sửa trên**: `session.ts` giờ import
+  `permissions.ts` (kéo theo Prisma) để gọi `loadUserPermissions` — nhưng
+  `src/middleware.ts` (chạy Edge runtime, không chạy được Prisma) trước đó
+  import `SESSION_COOKIE_NAME` từ `session.ts`, nên vô tình kéo TOÀN BỘ
+  Prisma Client vào bundle middleware (build log cho thấy bundle middleware
+  phình từ ~40KB lên ~113KB). Sửa bằng cách tách hằng số cookie ra file riêng
+  `src/modules/auth/lib/session-constants.ts` (không import gì từ Prisma),
+  middleware import thẳng từ file này thay vì từ `session.ts`. Xác nhận build
+  lại middleware bundle về đúng ~40KB như cũ.
+
+Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 7):
+- Lead time cảnh báo Core Return theo mốc 7/15/30 ngày (mục 13) và tự động
+  chuyển PENDING→OVERDUE — hiện phải bấm tay action "Quá hạn".
+  Chặn "không cấp hàng mới nếu khách chưa hoàn trả core cũ" (mục 13) cũng
+  chưa có — WarrantyClaim.replace không kiểm tra CoreReturn tồn đọng.
+  Đây là 2 điểm nghiệp vụ cùng nhóm, để lại vì cần thêm 1 loại cảnh
+  báo/scheduler chưa có hạ tầng.
+- RMA `repair`/`replace` là trạng thái cuối đơn thuần, chưa có side-effect
+  xuất/nhập kho thực sự khi sửa xong/đổi xong tại kho bảo hành (khác với
+  WarrantyClaim.replace đã có side-effect đầy đủ) — vì RMA phần lớn xử lý
+  hàng ĐÃ thu hồi về kho, tình huống nghiệp vụ (sửa xong trả lại kho nào,
+  đổi bằng serial nào) đa dạng hơn cần làm rõ thêm với business trước khi
+  code cứng.
+- Service Contract, Service KPI, Maintenance Management định kỳ (mục 3, 14
+  business-spec) — không có model riêng trong Prisma schema từ Phase 0,
+  ngoài phạm vi ERD đã chốt.
+- Mobile app cho kỹ thuật viên, GPS check-in (mục 19) — ngoài phạm vi ERP nội
+  bộ theo ROADMAP.
+- Chưa có test tự động — vẫn kiểm thử thủ công qua curl + Playwright.
+
+File liên quan: src/modules/warranty/**, src/app/api/warranty/**,
+src/app/(app)/warranty/**, src/modules/auth/lib/session.ts (bỏ permissions
+khỏi JWT, nạp lại từ DB mỗi request), src/modules/auth/lib/session-constants.ts
+(mới — tách hằng số cookie khỏi session.ts để không kéo Prisma vào Edge
+middleware), src/modules/auth/api/login.ts (JWT chỉ ký roles),
+src/middleware.ts (đổi import sang session-constants.ts), prisma/seed.ts
+(thêm resource warranty-policy/warranty-registration/warranty-claim/
+rma-request/core-return/repair-order/field-service-request).
+```
+
+---
+
 ## Quyết định kỹ thuật quan trọng đã chốt (không tự ý đổi)
 
 - Tiền tệ lưu Int, không Decimal/Float (lý do: SQLite → SQL Server migrate an toàn)
@@ -344,6 +442,8 @@ delivery-request/shipment/delivery-cost).
 - `parseSort()` có fallback mặc định `{createdAt:"desc"}` — bảng nào KHÔNG có cột `createdAt` (vd. `SalesReturn` chỉ có `requestedAt`, `Driver` không có cột thời gian nào) PHẢI truyền fallback tường minh, nếu không Prisma sẽ báo lỗi `Unknown argument` lúc runtime (không bắt được ở type-check vì `orderBy` được build động). `createCrudApi` có option `defaultSort` cho đúng việc này.
 - Xuất kho thật (trừ `onHandQty`, gọi `recordStockMovement` type `ISSUE`) CHỈ xảy ra ở bước `Shipment.dispatch()` (Phase 6) — không xảy ra ở Sales Order Phase 5 (chỉ giữ hàng) hay ở lúc tạo Delivery Request (chỉ là yêu cầu, chưa động vào kho). Đây là điểm phân chia trách nhiệm rõ giữa 2 phase, tránh trừ tồn 2 lần.
 - `Shipment.status` dùng chung enum `DeliveryRequestStatus` với `DeliveryRequest` (không tạo enum `ShipmentStatus` riêng) vì 2 bảng đi cùng nhịp trạng thái (PLANNED→ON_DELIVERY→DELIVERED→CLOSED) theo đúng thiết kế ERD gốc — khi 1 Shipment chuyển trạng thái, code cập nhật `updateMany` cho mọi `DeliveryRequest` liên quan trong cùng transaction để đồng bộ.
+- **KHÔNG BAO GIỜ nhúng danh sách permission đầy đủ vào JWT/cookie** (bài học đau từ Phase 7 — xem chi tiết ở "Việc đang dở" Phase 7). Cookie giới hạn ~4096 byte; hệ thống càng nhiều permission theo từng phase càng dễ vượt ngưỡng và trình duyệt sẽ LẶNG LẼ từ chối lưu (không báo lỗi rõ ràng). JWT (`SessionTokenPayload` trong session.ts) chỉ ký sub/companyId/username/employeeId/roles; `getCurrentSession()` nạp lại `permissions` từ DB mỗi request qua `loadUserPermissions()`.
+- `src/middleware.ts` (Edge runtime) chỉ được import hằng số/hàm từ `src/modules/auth/lib/session-constants.ts` — TUYỆT ĐỐI không import từ `session.ts` (file này import `permissions.ts` → kéo theo Prisma Client, không chạy được ở Edge và làm phình bundle middleware). Khi thêm hằng số dùng chung giữa middleware và route handler, luôn cân nhắc đặt ở `session-constants.ts` thay vì `session.ts`.
 - Xem đầy đủ tại CLAUDE.md mục 3-4 và ERD tại docs/data-model.md
 
 ## Vấn đề/rủi ro đã phát hiện (điền khi gặp)

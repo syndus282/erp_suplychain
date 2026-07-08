@@ -36,6 +36,12 @@ import {
   Building,
   PackageOpen,
   Send,
+  ShieldCheck,
+  BadgeCheck,
+  Undo,
+  RefreshCcw,
+  Hammer,
+  Wrench,
 } from "lucide-react";
 
 export interface NavItem {
@@ -122,6 +128,18 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Xe giao hàng", href: "/logistics/vehicles", icon: Bus },
       { label: "Tài xế", href: "/logistics/drivers", icon: UserRound },
       { label: "Đơn vị vận chuyển", href: "/logistics/carriers", icon: Building },
+    ],
+  },
+  {
+    label: "Bảo hành & Dịch vụ",
+    items: [
+      { label: "Chính sách bảo hành", href: "/warranty/policies", icon: ShieldCheck },
+      { label: "Đăng ký bảo hành", href: "/warranty/registrations", icon: BadgeCheck },
+      { label: "Yêu cầu bảo hành", href: "/warranty/claims", icon: Undo },
+      { label: "RMA - Thu hồi hàng lỗi", href: "/warranty/rma-requests", icon: RefreshCcw },
+      { label: "Core Return", href: "/warranty/core-returns", icon: RefreshCcw },
+      { label: "Lệnh sửa chữa", href: "/warranty/repair-orders", icon: Hammer },
+      { label: "Dịch vụ hiện trường", href: "/warranty/field-service", icon: Wrench },
     ],
   },
   {

@@ -58,6 +58,14 @@ const RESOURCES = [
   "delivery-request",
   "shipment",
   "delivery-cost",
+  // Phase 7 — Warranty, RMA & Field Service
+  "warranty-policy",
+  "warranty-registration",
+  "warranty-claim",
+  "rma-request",
+  "core-return",
+  "repair-order",
+  "field-service-request",
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
@@ -73,6 +81,11 @@ const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
   "sales-order": ["confirm", "allocate", "cancel"],
   "sales-return": ["approve", "reject", "receive", "qc", "refund"],
   shipment: ["dispatch", "pod", "close"],
+  "warranty-claim": ["inspect", "approve", "reject", "repair", "replace", "close"],
+  "rma-request": ["approve", "reject", "receive", "qc", "repair", "replace"],
+  "core-return": ["receive", "overdue", "lost"],
+  "repair-order": ["advance"],
+  "field-service-request": ["assign", "start", "complete", "cancel"],
 };
 
 /** Resource chỉ có 1 phần action chuẩn (vd. "user" chỉ có read, chưa có UI tạo/sửa User ở Phase 1-2). */
@@ -84,6 +97,12 @@ const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly stri
   "consignment-balance": ["read"],
   "delivery-request": ["read", "create"], // tạo qua action từ Sales Order, không có form sửa tay
   "delivery-cost": ["read", "create"],
+  "warranty-registration": ["read", "create"],
+  "warranty-claim": ["read", "create"],
+  "rma-request": ["read", "create"],
+  "core-return": ["read", "create"],
+  "repair-order": ["read"], // tạo qua action WarrantyClaim.repair, không có form tạo tay
+  "field-service-request": ["read", "create"],
 };
 
 async function main() {

@@ -1,15 +1,30 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { loadUserPermissions } from "./permissions";
+import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "./session-constants";
 
-export const SESSION_COOKIE_NAME = "erp_session";
-const SESSION_TTL_SECONDS = 8 * 60 * 60; // 8h — 1 ca làm việc. Sliding/idle-timeout để lại phase sau (xem docs/nfr.md mục 3).
+export { SESSION_COOKIE_NAME };
 
-export interface SessionPayload {
+/** Phần được ký vào JWT — PHẢI nhỏ gọn (roles, không phải permissions). */
+export interface SessionTokenPayload {
   sub: string; // userId
   companyId: string;
   username: string;
   employeeId: string | null;
   roles: string[];
+}
+
+/**
+ * Session đầy đủ dùng trong route handler — `permissions` được nạp từ DB ở
+ * mỗi request (qua `getCurrentSession()`), KHÔNG nhúng vào cookie. Trước đây
+ * nhúng thẳng vào JWT nhưng khi số permission tăng theo từng phase (đến
+ * Phase 7 là 164 permission), cookie vượt quá giới hạn ~4096 byte/cookie của
+ * trình duyệt (RFC 6265) — trình duyệt lặng lẽ từ chối lưu cookie, khiến đăng
+ * nhập "thành công" (200) nhưng session không bao giờ được lưu, mọi trang
+ * sau đó bị đá về /login. Tách permissions ra khỏi JWT vừa sửa triệt để bug
+ * này, vừa loại bỏ giới hạn cũ "đổi quyền phải đăng nhập lại mới có hiệu lực".
+ */
+export interface SessionPayload extends SessionTokenPayload {
   permissions: string[]; // "<resource>:<action>", xem docs/business-spec/13 mục 21
 }
 
@@ -23,7 +38,7 @@ function getSecretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken(payload: SessionPayload): Promise<string> {
+export async function createSessionToken(payload: SessionTokenPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -31,10 +46,10 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
     .sign(getSecretKey());
 }
 
-export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
+export async function verifySessionToken(token: string): Promise<SessionTokenPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecretKey());
-    return payload as unknown as SessionPayload;
+    return payload as unknown as SessionTokenPayload;
   } catch {
     return null;
   }
@@ -56,10 +71,18 @@ export async function clearSessionCookie(): Promise<void> {
   store.delete(SESSION_COOKIE_NAME);
 }
 
-/** Đọc & verify session hiện tại từ cookie — dùng trong route handler (Node runtime). */
+/**
+ * Đọc & verify session hiện tại từ cookie, rồi nạp permissions mới nhất từ DB
+ * (dùng trong route handler, Node runtime) — xem lý do ở JSDoc `SessionPayload`.
+ */
 export async function getCurrentSession(): Promise<SessionPayload | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
-  return verifySessionToken(token);
+
+  const tokenPayload = await verifySessionToken(token);
+  if (!tokenPayload) return null;
+
+  const { permissions } = await loadUserPermissions(tokenPayload.sub);
+  return { ...tokenPayload, permissions };
 }

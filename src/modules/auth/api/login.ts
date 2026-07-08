@@ -26,13 +26,13 @@ export async function loginHandler(request: Request): Promise<Response> {
 
   const { roles, permissions } = await loadUserPermissions(user.id);
 
+  // JWT chỉ ký roles (không ký permissions) — xem JSDoc SessionPayload ở session.ts.
   const token = await createSessionToken({
     sub: user.id,
     companyId: user.companyId,
     username: user.username,
     employeeId: user.employeeId,
     roles,
-    permissions,
   });
   await setSessionCookie(token);
 

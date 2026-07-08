@@ -22,18 +22,22 @@ Nguyên tắc áp dụng:
 
 | Token | Light | Dark | Dùng cho |
 |---|---|---|---|
-| `surface-base` | `#F5F6F8` | `#0B0D12` | Nền toàn trang |
-| `surface-glass` | `rgba(255,255,255,0.55)` + `backdrop-blur(20px)` | `rgba(24,26,32,0.55)` + `backdrop-blur(20px)` | Card, sidebar, top bar, modal |
-| `surface-glass-border` | `rgba(255,255,255,0.35)` (viền 1px) | `rgba(255,255,255,0.08)` | Viền của bề mặt kính |
-| `surface-solid` | `#FFFFFF` | `#15171D` | Bảng dữ liệu, form input — nền phẳng để đảm bảo đọc số liệu |
-| `surface-overlay-scrim` | `rgba(15,17,21,0.4)` | `rgba(0,0,0,0.6)` | Lớp phủ phía sau modal/drawer |
+| `surface-base` | `#EEF1F8` | `#0A0B12` | Nền toàn trang (màu nền dưới lớp mesh blob) |
+| `surface-glass` | `rgba(255,255,255,0.46)` + `backdrop-blur(28px) saturate(1.6)` | `rgba(36,38,54,0.42)` + `backdrop-blur(32px) saturate(1.6)` | Card, sidebar, top bar, modal |
+| `surface-glass-strong` | `rgba(255,255,255,0.68)` (cùng blur) | `rgba(44,46,64,0.62)` (cùng blur) | Trạng thái active/nhấn mạnh trên nền kính (menu item active, nút secondary) |
+| `surface-glass-border` | `rgba(255,255,255,0.75)` (viền 1px) | `rgba(255,255,255,0.14)` | Viền của bề mặt kính |
+| `surface-glass-shine` | `rgba(255,255,255,0.9)` | `rgba(255,255,255,0.16)` | Highlight/inset shadow mô phỏng ánh sáng phản chiếu trên kính |
+| `surface-solid` | `rgba(255,255,255,0.94)` | `rgba(22,23,33,0.92)` | Bảng dữ liệu, form input, Card nội dung dày đặc — nền gần như phẳng để đảm bảo đọc số liệu |
+| `surface-overlay-scrim` | `rgba(15,17,30,0.45)` | `rgba(0,0,0,0.65)` | Lớp phủ phía sau modal/drawer |
+
+**Nền mesh (`.app-background`)**: bề mặt kính chỉ "hiện" rõ khi có nền nhiều màu phía sau để `backdrop-filter` khúc xạ — nếu không, blur trên nền xám phẳng trông như không có hiệu ứng gì. Do đó toàn app có một lớp nền cố định (`position: fixed`, `z-index: -1`) chứa 3 khối tròn màu lớn, mờ nét (`filter: blur(90px)`, `opacity` 0.35-0.55): `--bg-blob-1/2/3` (Light: `#a5c4ff` xanh dương / `#ffc2e6` hồng / `#b8f0d8` xanh ngọc; Dark: `#2f4ea8` / `#7d2f7a` / `#1f7a5c`). Đây là điều kiện bắt buộc để `.glass-surface`/`.glass-surface-strong` có tác dụng thị giác đúng như tên gọi "Liquid Glass".
 
 ### 2.2 Màu thương hiệu & ngữ nghĩa (Semantic)
 
 | Token | Giá trị | Dùng cho |
 |---|---|---|
-| `brand-primary` | `#2563EB` (xanh dương) | Nút hành động chính, link, focus ring |
-| `brand-primary-hover` | `#1D4ED8` | Hover state của primary |
+| `brand-primary` | `#3B6DF0` (xanh dương) | Nút hành động chính, link, focus ring |
+| `brand-primary-hover` | `#2451D6` | Hover state của primary |
 | `semantic-success` | `#16A34A` | Trạng thái hoàn tất/đạt (Delivered, Paid, Approved) |
 | `semantic-warning` | `#D97706` | Cảnh báo (sắp hết hàng, sắp quá hạn) |
 | `semantic-danger` | `#DC2626` | Lỗi, quá hạn, vi phạm quy tắc (âm kho, quá hạn công nợ) |
@@ -74,9 +78,9 @@ Trọng số: `font-normal` (400) cho body, `font-medium` (500) cho label/nhấn
 ## 4. Spacing & Layout
 
 - Thang spacing theo bội số 4px: `4, 8, 12, 16, 24, 32, 48, 64` — map trực tiếp Tailwind spacing scale mặc định (`1, 2, 3, 4, 6, 8, 12, 16`), không tự định nghĩa thang riêng.
-- Bo góc (`border-radius`): `rounded-lg` (12px) cho card/input, `rounded-xl` (16px) cho modal/panel lớn, `rounded-full` cho badge/avatar. Bề mặt kính luôn bo góc ≥ 12px — góc vuông không phù hợp hiệu ứng kính.
-- Bố cục chuẩn: sidebar trái cố định (điều hướng module) + top bar (breadcrumb, user menu, notification) + vùng nội dung chính. Sidebar và top bar dùng `surface-glass`; vùng nội dung dùng `surface-base`.
-- Bảng dữ liệu (data table) luôn dùng `surface-solid`, không áp blur — ưu tiên đọc nhanh số lượng lớn dòng.
+- Bo góc (`border-radius`): `rounded-xl` (12px) cho input/field, `rounded-2xl` (16px) cho card/bảng/panel chính (sidebar, top bar, vùng nội dung, modal), `rounded-full` cho button/badge/avatar/pill. Bề mặt kính luôn bo góc ≥ 16px — góc nhỏ hoặc vuông không phù hợp hiệu ứng kính "trôi nổi".
+- Bố cục chuẩn: sidebar trái cố định (điều hướng module) + top bar (breadcrumb, user menu, notification) + vùng nội dung chính, cách nhau bằng gap 12px (`gap-3`) chứ không sát cạnh — mỗi khối là một "tấm kính" riêng nổi trên nền mesh. Sidebar, top bar và khung nội dung (`<main>`) đều dùng `.glass-surface`; nền phía sau cùng là `.app-background` (mục 2.1).
+- Bảng dữ liệu (data table) và Card nội dung luôn dùng `surface-solid` (gần như phẳng, không blur) lồng bên trong khung `.glass-surface` — tránh double-blur và ưu tiên đọc nhanh số lượng lớn dòng/số liệu.
 
 ---
 
@@ -84,15 +88,15 @@ Trọng số: `font-normal` (400) cho body, `font-medium` (500) cho label/nhấn
 
 | Component | Nguyên tắc |
 |---|---|
-| **Card** | `surface-glass` + viền `surface-glass-border` 1px + `shadow-sm` mềm. Padding tối thiểu 16px. |
-| **Button primary** | Nền `brand-primary`, chữ trắng, `rounded-lg`, không dùng hiệu ứng kính (cần độ tương phản cao, rõ ràng là nút bấm). |
-| **Button secondary/ghost** | Nền `surface-glass` nhạt hoặc trong suốt hoàn toàn, viền 1px `surface-glass-border`. |
-| **Input/Form field** | `surface-solid`, viền 1px `text-secondary` nhạt, focus ring `brand-primary` 2px. KHÔNG dùng nền kính cho input — cần độ tương phản ổn định khi gõ liệu. |
+| **Card** | `surface-solid` (phẳng, không blur) + viền mảnh `text-disabled/10` + `shadow-sm` mềm, `rounded-2xl`. Lồng bên trong khung `.glass-surface` của trang — Card tự thân không lặp lại hiệu ứng kính (tránh double-blur). Padding tối thiểu 16px. |
+| **Button primary** | Nền `brand-primary`, chữ trắng, `rounded-full` (dạng pill), có glow shadow màu brand nhẹ, không dùng hiệu ứng kính (cần độ tương phản cao, rõ ràng là nút bấm). Button danger tương tự với `semantic-danger`. |
+| **Button secondary/ghost** | `.glass-surface-strong` (nền kính đậm hơn), `rounded-full`, viền 1px `surface-glass-border`. |
+| **Input/Form field** | `surface-solid`, `rounded-xl`, viền 1px `text-disabled/30`, focus: viền `brand-primary` + ring 4px `brand-primary/15`. KHÔNG dùng nền kính cho input — cần độ tương phản ổn định khi gõ liệu. |
 | **Badge/Status pill** | Nền màu semantic ở độ mờ 12-15% (`bg-success/15`), chữ màu semantic đậm hơn (`text-success`), `rounded-full`, `text-xs font-medium`. |
-| **Modal/Dialog** | `surface-glass` + `surface-overlay-scrim` phía sau, `rounded-xl`, animation fade+scale nhẹ khi mở (mục 7). |
-| **Data table** | `surface-solid`, header sticky, hàng zebra rất nhạt (`odd:bg-black/[0.02]` dark: `odd:bg-white/[0.02]`), hover row `bg-brand-primary/5`. |
-| **Sidebar navigation** | `surface-glass`, mục đang active có nền `brand-primary/10` + viền trái 2px `brand-primary`. |
-| **KPI Card (Dashboard)** | `surface-glass`, số liệu dùng `text-2xl font-semibold tabular-nums`, label phụ `text-sm text-secondary` phía trên. |
+| **Modal/Dialog** | `.glass-surface` + `surface-overlay-scrim` phía sau, `rounded-2xl`, animation fade+scale nhẹ khi mở (mục 7). |
+| **Data table** | `surface-solid`, khung ngoài `rounded-2xl`, header sticky, hàng zebra rất nhạt (`odd:bg-black/[0.015]` dark: `odd:bg-white/[0.02]`), hover row `bg-brand-primary/5`. |
+| **Sidebar navigation** | Khung sidebar `.glass-surface rounded-2xl`; mục đang active dùng `.glass-surface-strong` (pill kính đậm hơn) + `text-brand-primary font-medium` + `shadow-sm`, không còn viền trái. |
+| **KPI Card (Dashboard)** | `surface-solid` lồng trong khung glass, số liệu dùng `text-2xl font-semibold tabular-nums`, label phụ `text-sm text-secondary` phía trên. |
 
 ---
 
@@ -122,7 +126,7 @@ Trọng số: `font-normal` (400) cho body, `font-medium` (500) cho label/nhấn
 ## 9. Dark Mode
 
 - Mặc định theo `prefers-color-scheme` của hệ điều hành, có toggle thủ công lưu vào `localStorage`.
-- Hiệu ứng kính ở Dark mode cần blur mạnh hơn nhẹ (24px thay vì 20px) vì nền tối làm giảm cảm giác phân lớp — bù lại bằng viền sáng nhẹ hơn (`rgba(255,255,255,0.08)`).
+- Hiệu ứng kính ở Dark mode cần blur mạnh hơn (32px thay vì 28px ở Light) vì nền tối làm giảm cảm giác phân lớp — bù lại bằng viền sáng nhẹ hơn (`rgba(255,255,255,0.14)`) và giảm opacity của mesh blob nền (0.35 thay vì 0.55) để không chói.
 - KHÔNG đảo ngược đơn giản màu semantic (success/warning/danger) giữa 2 mode — giữ nguyên hue, chỉ điều chỉnh độ sáng để đảm bảo contrast.
 
 ---

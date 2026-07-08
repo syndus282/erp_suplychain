@@ -9,7 +9,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="glass-surface hidden w-64 shrink-0 flex-col overflow-y-auto p-4 md:flex">
+    <aside className="glass-surface hidden w-64 shrink-0 flex-col overflow-y-auto rounded-2xl p-4 md:flex">
       <div className="mb-6 px-2">
         <p className="text-sm font-semibold text-text-primary">ERP Phụ Tùng Ô Tô</p>
         <p className="text-xs text-text-secondary">Chuỗi cung ứng</p>
@@ -30,9 +30,9 @@ export function Sidebar() {
                     <Link
                       href={item.href}
                       className={clsx(
-                        "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition",
+                        "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
                         active
-                          ? "border-l-2 border-brand-primary bg-brand-primary/10 font-medium text-brand-primary"
+                          ? "glass-surface-strong font-medium text-brand-primary shadow-sm"
                           : "text-text-secondary hover:bg-surface-glass hover:text-text-primary"
                       )}
                     >

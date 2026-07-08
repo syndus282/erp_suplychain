@@ -4,57 +4,79 @@
    mới ở đây nếu chưa kiểm tra contrast ratio theo mục 2.3 của tài liệu đó. */
 
 :root {
-  --surface-base: #f5f6f8;
-  --surface-glass: rgba(255, 255, 255, 0.55);
-  --surface-glass-border: rgba(255, 255, 255, 0.35);
-  --surface-solid: #ffffff;
-  --surface-overlay-scrim: rgba(15, 17, 21, 0.4);
-  --surface-glass-blur: 20px;
+  --surface-base: #eef1f8;
+  --surface-glass: rgba(255, 255, 255, 0.46);
+  --surface-glass-strong: rgba(255, 255, 255, 0.68);
+  --surface-glass-border: rgba(255, 255, 255, 0.75);
+  --surface-glass-shine: rgba(255, 255, 255, 0.9);
+  --surface-solid: rgba(255, 255, 255, 0.94);
+  --surface-overlay-scrim: rgba(15, 17, 30, 0.45);
+  --surface-glass-blur: 28px;
+  --surface-glass-shadow: 0 8px 32px -8px rgba(31, 41, 82, 0.18), 0 1px 1px 0 rgba(255, 255, 255, 0.5) inset;
 
-  --brand-primary: #2563eb;
-  --brand-primary-hover: #1d4ed8;
+  --bg-blob-1: #a5c4ff;
+  --bg-blob-2: #ffc2e6;
+  --bg-blob-3: #b8f0d8;
+
+  --brand-primary: #3b6df0;
+  --brand-primary-hover: #2451d6;
 
   --semantic-success: #16a34a;
   --semantic-warning: #d97706;
   --semantic-danger: #dc2626;
   --semantic-info: #0891b2;
 
-  --text-primary: #0f1115;
+  --text-primary: #12141c;
   --text-secondary: #5b6270;
   --text-disabled: #a6acb8;
 }
 
 :root[data-theme="dark"] {
-  --surface-base: #0b0d12;
-  --surface-glass: rgba(24, 26, 32, 0.55);
-  --surface-glass-border: rgba(255, 255, 255, 0.08);
-  --surface-solid: #15171d;
-  --surface-overlay-scrim: rgba(0, 0, 0, 0.6);
-  --surface-glass-blur: 24px;
+  --surface-base: #0a0b12;
+  --surface-glass: rgba(36, 38, 54, 0.42);
+  --surface-glass-strong: rgba(44, 46, 64, 0.62);
+  --surface-glass-border: rgba(255, 255, 255, 0.14);
+  --surface-glass-shine: rgba(255, 255, 255, 0.16);
+  --surface-solid: rgba(22, 23, 33, 0.92);
+  --surface-overlay-scrim: rgba(0, 0, 0, 0.65);
+  --surface-glass-blur: 32px;
+  --surface-glass-shadow: 0 8px 40px -8px rgba(0, 0, 0, 0.55), 0 1px 0 0 rgba(255, 255, 255, 0.06) inset;
 
-  --text-primary: #f2f3f5;
-  --text-secondary: #9aa1ae;
-  --text-disabled: #585e68;
+  --bg-blob-1: #2f4ea8;
+  --bg-blob-2: #7d2f7a;
+  --bg-blob-3: #1f7a5c;
+
+  --text-primary: #f2f3f7;
+  --text-secondary: #a3a9ba;
+  --text-disabled: #5b6072;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --surface-base: #0b0d12;
-    --surface-glass: rgba(24, 26, 32, 0.55);
-    --surface-glass-border: rgba(255, 255, 255, 0.08);
-    --surface-solid: #15171d;
-    --surface-overlay-scrim: rgba(0, 0, 0, 0.6);
-    --surface-glass-blur: 24px;
+    --surface-base: #0a0b12;
+    --surface-glass: rgba(36, 38, 54, 0.42);
+    --surface-glass-strong: rgba(44, 46, 64, 0.62);
+    --surface-glass-border: rgba(255, 255, 255, 0.14);
+    --surface-glass-shine: rgba(255, 255, 255, 0.16);
+    --surface-solid: rgba(22, 23, 33, 0.92);
+    --surface-overlay-scrim: rgba(0, 0, 0, 0.65);
+    --surface-glass-blur: 32px;
+    --surface-glass-shadow: 0 8px 40px -8px rgba(0, 0, 0, 0.55), 0 1px 0 0 rgba(255, 255, 255, 0.06) inset;
 
-    --text-primary: #f2f3f5;
-    --text-secondary: #9aa1ae;
-    --text-disabled: #585e68;
+    --bg-blob-1: #2f4ea8;
+    --bg-blob-2: #7d2f7a;
+    --bg-blob-3: #1f7a5c;
+
+    --text-primary: #f2f3f7;
+    --text-secondary: #a3a9ba;
+    --text-disabled: #5b6072;
   }
 }
 
 @theme inline {
   --color-surface-base: var(--surface-base);
   --color-surface-glass: var(--surface-glass);
+  --color-surface-glass-strong: var(--surface-glass-strong);
   --color-surface-glass-border: var(--surface-glass-border);
   --color-surface-solid: var(--surface-solid);
   --color-surface-overlay-scrim: var(--surface-overlay-scrim);
@@ -74,17 +96,97 @@
   --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
 }
 
-body {
+html {
   background: var(--surface-base);
+}
+
+body {
   color: var(--text-primary);
   font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+/*
+ * Nền "mesh" nhiều khối màu mờ, cố định toàn viewport — đây là lớp NỀN mà
+ * hiệu ứng kính (.glass-surface / backdrop-filter) khúc xạ/làm mờ. Không có
+ * lớp nền nhiều màu này thì backdrop-blur không có gì để "làm mờ" và trông
+ * phẳng như nền xám thường — đây là lý do cốt lõi của phong cách Liquid Glass.
+ */
+.app-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: var(--surface-base);
+}
+
+.app-background::before,
+.app-background::after,
+.app-background span {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.55;
+}
+
+.app-background::before {
+  width: 40vw;
+  height: 40vw;
+  top: -10%;
+  left: -8%;
+  background: var(--bg-blob-1);
+}
+
+.app-background::after {
+  width: 36vw;
+  height: 36vw;
+  bottom: -12%;
+  right: -6%;
+  background: var(--bg-blob-2);
+}
+
+.app-background .blob-3 {
+  content: "";
+  position: absolute;
+  width: 30vw;
+  height: 30vw;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.45;
+  top: 30%;
+  left: 55%;
+  background: var(--bg-blob-3);
+}
+
+@media (prefers-color-scheme: dark) {
+  .app-background::before,
+  .app-background::after,
+  .app-background .blob-3 {
+    opacity: 0.35;
+  }
+}
+
+:root[data-theme="dark"] .app-background::before,
+:root[data-theme="dark"] .app-background::after,
+:root[data-theme="dark"] .app-background .blob-3 {
+  opacity: 0.35;
 }
 
 .glass-surface {
   background: var(--surface-glass);
   border: 1px solid var(--surface-glass-border);
-  backdrop-filter: blur(var(--surface-glass-blur));
-  -webkit-backdrop-filter: blur(var(--surface-glass-blur));
+  backdrop-filter: blur(var(--surface-glass-blur)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--surface-glass-blur)) saturate(1.6);
+  box-shadow: var(--surface-glass-shadow);
+}
+
+.glass-surface-strong {
+  background: var(--surface-glass-strong);
+  border: 1px solid var(--surface-glass-border);
+  backdrop-filter: blur(var(--surface-glass-blur)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--surface-glass-blur)) saturate(1.6);
+  box-shadow: var(--surface-glass-shadow);
 }
 
 .tabular-nums {

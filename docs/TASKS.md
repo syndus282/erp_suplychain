@@ -96,6 +96,56 @@ consignment-sales-report/consignment-reconciliation/stock-recall).
 
 ---
 
+Design refresh - "Liquid Glass" (áp dụng lại cho đúng tinh thần
+docs/design-system.md): HOÀN THÀNH, thêm vào cùng branch
+`claude/phase-4-distribution` (commit riêng sau Phase 4).
+
+Lý do: UI trước đó về mặt chức năng đúng nhưng hiệu ứng kính gần như không
+thấy được — nền toàn trang phẳng một màu (`surface-base` xám nhạt) khiến
+`backdrop-filter: blur()` trên Card/Sidebar/Topbar không có gì để khúc xạ,
+nhìn như card trắng thường có viền mờ chứ không phải "Liquid Glass".
+
+Đã xong:
+- Thêm lớp nền `.app-background` (fixed, z-index -1, phủ toàn viewport) chứa
+  3 khối tròn màu lớn mờ nét (`blur(90px)`) — đây là điều kiện bắt buộc để
+  hiệu ứng kính có tác dụng thị giác thật sự (xem docs/design-system.md mục
+  2.1 phần "Nền mesh"). Light: xanh dương/hồng/xanh ngọc; Dark: tối hơn +
+  giảm opacity 0.55→0.35 để không chói.
+- Tăng blur bề mặt kính 20px→28px (Light) và 24px→32px (Dark), thêm
+  `saturate(1.6)` để màu nền mesh "ánh" qua lớp kính rõ hơn; thêm token
+  `--surface-glass-strong` (kính đậm hơn, dùng cho trạng thái active) và
+  `--surface-glass-shine`/`--surface-glass-shadow` (viền sáng + đổ bóng mô
+  phỏng ánh sáng phản chiếu trên kính thật).
+- Đổi `brand-primary` từ `#2563EB` sang `#3B6DF0` (tương phản tốt hơn trên
+  nền kính đậm màu hơn).
+- Bo góc lại toàn bộ theo mục 4 (đã cập nhật docs/design-system.md khớp):
+  Card/Table/khung nội dung chính `rounded-2xl`, input `rounded-xl`,
+  Button `rounded-full` (pill, có glow shadow màu brand/danger).
+- Card đổi từ nền kính sang `surface-solid` phẳng — Card nằm lồng bên trong
+  khung `.glass-surface` của `<main>` nên tự thân không lặp lại hiệu ứng
+  kính (tránh double-blur, đúng nguyên tắc mục 1.2 "bảng/số liệu dày đặc
+  dùng nền phẳng").
+- Sidebar active nav đổi từ "viền trái 2px" sang `.glass-surface-strong`
+  dạng pill; AppShell/Sidebar/Topbar dùng `gap-3` giữa các khối để mỗi khối
+  đọc như một tấm kính riêng nổi trên nền mesh.
+- LoginForm viết lại dùng chung `Input`/`Label`/`Button`, khung form
+  `rounded-3xl` trên nền `.glass-surface`.
+- Đã xác nhận bằng Playwright screenshot cả Light và Dark mode (login +
+  dashboard + 1 trang danh sách có bảng dữ liệu) — hiệu ứng kính hiện rõ,
+  bảng dữ liệu vẫn đọc tốt (nền phẳng, không blur). `npm run type-check`,
+  `npm run lint`, `npm run build` đều sạch.
+- Đồng bộ docs/design-system.md mục 2.1/4/5/9 theo đúng giá trị đã cài đặt
+  (trước đó tài liệu ghi giá trị blur/bo góc/màu cũ từ thời Phase 0, chưa
+  cập nhật khi code thực tế đổi).
+
+File liên quan: src/app/globals.css, src/app/layout.tsx,
+src/components/layout/{AppShell,Sidebar,Topbar}.tsx,
+src/components/ui/{Card,Button,Input,Table}.tsx,
+src/modules/auth/components/LoginForm.tsx, src/app/login/page.tsx,
+docs/design-system.md.
+
+---
+
 Phase 5 - Sales Order & Customer: CHƯA BẮT ĐẦU. Customer Master đã có sẵn từ
 Phase 4 (src/modules/distribution/api/customers.ts) — Phase 5 tái sử dụng,
 không tạo lại.

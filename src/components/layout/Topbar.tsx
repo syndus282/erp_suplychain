@@ -14,7 +14,7 @@ export function Topbar({ username }: { username: string }) {
   }
 
   return (
-    <header className="glass-surface flex h-14 items-center justify-between px-4">
+    <header className="glass-surface flex h-14 shrink-0 items-center justify-between rounded-2xl px-4">
       <div />
       <div className="flex items-center gap-3">
         <button

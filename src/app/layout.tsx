@@ -10,7 +10,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body>
+        <div className="app-background" aria-hidden="true">
+          <span className="blob-3" />
+        </div>
+        {children}
+      </body>
     </html>
   );
 }

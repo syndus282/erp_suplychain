@@ -21,6 +21,12 @@ import {
   Barcode,
   ArrowLeftRight,
   ClipboardList,
+  Store,
+  HandCoins,
+  Layers,
+  ReceiptText,
+  Scale,
+  Undo2,
 } from "lucide-react";
 
 export interface NavItem {
@@ -76,6 +82,18 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Serial Number", href: "/inventory/serial-numbers", icon: Barcode },
       { label: "Điều chuyển kho", href: "/inventory/transfers", icon: ArrowLeftRight },
       { label: "Kiểm kê kho", href: "/inventory/counts", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Phân phối & Ký gửi",
+    items: [
+      { label: "Khách hàng / Đại lý", href: "/distribution/customers", icon: Store },
+      { label: "Hợp đồng ký gửi", href: "/distribution/agreements", icon: HandCoins },
+      { label: "Ký gửi hàng", href: "/distribution/shipments", icon: Layers },
+      { label: "Tồn kho ký gửi", href: "/distribution/balances", icon: Boxes },
+      { label: "Báo bán hàng", href: "/distribution/sales-reports", icon: ReceiptText },
+      { label: "Đối soát ký gửi", href: "/distribution/reconciliations", icon: Scale },
+      { label: "Thu hồi hàng", href: "/distribution/recalls", icon: Undo2 },
     ],
   },
   {

@@ -38,6 +38,14 @@ const RESOURCES = [
   "stock-transfer",
   "stock-count",
   "serial-number", // chỉ read — tạo qua GoodsReceipt, chưa có CRUD riêng ở Phase 3
+  // Phase 4 — Distribution & Consignment
+  "customer", // bao gồm cả Dealer (Customer.type = DEALER + DealerProfile)
+  "consignment-agreement",
+  "consignment-shipment",
+  "consignment-balance", // chỉ read — số liệu tổng hợp
+  "consignment-sales-report",
+  "consignment-reconciliation",
+  "stock-recall",
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
@@ -47,6 +55,8 @@ const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
   "purchase-order": ["approve"],
   "stock-transfer": ["ship", "receive"],
   "stock-count": ["submit", "approve"],
+  "consignment-shipment": ["deliver"],
+  "stock-recall": ["receive"],
 };
 
 /** Resource chỉ có 1 phần action chuẩn (vd. "user" chỉ có read, chưa có UI tạo/sửa User ở Phase 1-2). */
@@ -55,6 +65,7 @@ const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly stri
   "inventory-balance": ["read"],
   "stock-movement": ["read"],
   "serial-number": ["read"],
+  "consignment-balance": ["read"],
 };
 
 async function main() {

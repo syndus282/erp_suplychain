@@ -42,6 +42,15 @@ import {
   RefreshCcw,
   Hammer,
   Wrench,
+  BookOpen,
+  Landmark,
+  FileSpreadsheet,
+  Receipt,
+  Wallet,
+  CreditCard,
+  Factory,
+  PiggyBank,
+  LineChart,
 } from "lucide-react";
 
 export interface NavItem {
@@ -140,6 +149,22 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Core Return", href: "/warranty/core-returns", icon: RefreshCcw },
       { label: "Lệnh sửa chữa", href: "/warranty/repair-orders", icon: Hammer },
       { label: "Dịch vụ hiện trường", href: "/warranty/field-service", icon: Wrench },
+    ],
+  },
+  {
+    label: "Tài chính & Kế toán",
+    items: [
+      { label: "Hệ thống tài khoản", href: "/finance/accounts", icon: BookOpen },
+      { label: "Trung tâm chi phí", href: "/finance/cost-centers", icon: Factory },
+      { label: "Bút toán kế toán (GL)", href: "/finance/journal-entries", icon: FileSpreadsheet },
+      { label: "Hóa đơn mua hàng (AP)", href: "/finance/supplier-invoices", icon: Receipt },
+      { label: "Hóa đơn bán hàng (AR)", href: "/finance/customer-invoices", icon: Receipt },
+      { label: "Thu / Chi", href: "/finance/payments", icon: Wallet },
+      { label: "Aging công nợ phải thu", href: "/finance/ar-aging", icon: LineChart },
+      { label: "Đánh giá lại tỷ giá", href: "/finance/fx-revaluation", icon: Landmark },
+      { label: "Tài khoản ngân hàng", href: "/finance/bank-accounts", icon: CreditCard },
+      { label: "Tài sản cố định", href: "/finance/fixed-assets", icon: PiggyBank },
+      { label: "Ngân sách", href: "/finance/budgets", icon: FileSpreadsheet },
     ],
   },
   {

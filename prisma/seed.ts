@@ -66,6 +66,17 @@ const RESOURCES = [
   "core-return",
   "repair-order",
   "field-service-request",
+  // Phase 8 — Finance & Accounting
+  "account",
+  "cost-center",
+  "journal-entry",
+  "supplier-invoice",
+  "customer-invoice",
+  "payment",
+  "bank-account",
+  "fixed-asset",
+  "budget",
+  "fx-revaluation",
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
@@ -86,6 +97,9 @@ const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
   "core-return": ["receive", "overdue", "lost"],
   "repair-order": ["advance"],
   "field-service-request": ["assign", "start", "complete", "cancel"],
+  "journal-entry": ["post", "lock"],
+  "fixed-asset": ["depreciate"],
+  "fx-revaluation": ["revalue"],
 };
 
 /** Resource chỉ có 1 phần action chuẩn (vd. "user" chỉ có read, chưa có UI tạo/sửa User ở Phase 1-2). */
@@ -103,6 +117,11 @@ const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly stri
   "core-return": ["read", "create"],
   "repair-order": ["read"], // tạo qua action WarrantyClaim.repair, không có form tạo tay
   "field-service-request": ["read", "create"],
+  "supplier-invoice": ["read", "create"],
+  "customer-invoice": ["read", "create"],
+  payment: ["read", "create"],
+  "journal-entry": ["read", "create"],
+  "fx-revaluation": [], // chỉ có action "revalue", không có CRUD chuẩn
 };
 
 async function main() {
@@ -116,6 +135,30 @@ async function main() {
     },
   });
   console.log(`Seeded default company: ${company.code} (${company.id})`);
+
+  // Hệ thống tài khoản tối thiểu (docs/business-spec/08 mục 4.1) — Phase 8
+  // (AP/AR/GL) chặn cứng nếu thiếu tài khoản đích khi tự động sinh bút toán
+  // (xem src/modules/finance/lib/posting.ts), nên phải seed sẵn cho môi
+  // trường dev chạy được ngay không cần tạo tay trước.
+  const DEFAULT_ACCOUNTS: { code: string; name: string; type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE" }[] = [
+    { code: "111", name: "Tiền mặt", type: "ASSET" },
+    { code: "112", name: "Tiền gửi ngân hàng", type: "ASSET" },
+    { code: "131", name: "Phải thu khách hàng", type: "ASSET" },
+    { code: "156", name: "Hàng hóa", type: "ASSET" },
+    { code: "331", name: "Phải trả người bán", type: "LIABILITY" },
+    { code: "511", name: "Doanh thu bán hàng", type: "REVENUE" },
+    { code: "515", name: "Doanh thu hoạt động tài chính (lãi tỷ giá)", type: "REVENUE" },
+    { code: "632", name: "Giá vốn hàng bán", type: "EXPENSE" },
+    { code: "635", name: "Chi phí tài chính (lỗ tỷ giá)", type: "EXPENSE" },
+  ];
+  for (const acc of DEFAULT_ACCOUNTS) {
+    await prisma.account.upsert({
+      where: { companyId_code: { companyId: company.id, code: acc.code } },
+      update: {},
+      create: { companyId: company.id, code: acc.code, name: acc.name, type: acc.type },
+    });
+  }
+  console.log(`Seeded ${DEFAULT_ACCOUNTS.length} default accounts.`);
 
   const permissionCodes: string[] = [];
   for (const resource of RESOURCES) {

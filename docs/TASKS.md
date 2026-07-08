@@ -16,7 +16,7 @@
 | 5 | Sales Order & Customer | ✅ Hoàn thành | Branch `claude/phase-5-sales` (kế thừa Phase 4) |
 | 6 | Logistics & Delivery | ✅ Hoàn thành | Branch `claude/phase-6-logistics` (kế thừa Phase 5) |
 | 7 | Warranty/RMA/Field Service | ✅ Hoàn thành | Branch `claude/phase-7-warranty` (kế thừa Phase 6) |
-| 8 | Finance & Accounting | ⬜ | |
+| 8 | Finance & Accounting | ✅ Hoàn thành | Branch `claude/phase-8-finance` (kế thừa Phase 7) |
 | 9 | HRM & Payroll | ⬜ | |
 | 10 | Workflow/Approval hoàn chỉnh | ⬜ | |
 | 11 | BI Dashboard | ⬜ | |
@@ -411,6 +411,95 @@ rma-request/core-return/repair-order/field-service-request).
 
 ---
 
+Phase 8 - Finance & Accounting: HOÀN THÀNH trên branch `claude/phase-8-finance`
+(kế thừa từ Phase 7).
+
+Đã xong:
+- Hệ thống tài khoản (Account, có phân cấp parentId) + Trung tâm chi phí
+  (CostCenter): crud-factory. Seed sẵn 9 tài khoản chuẩn (111/112/131/156/
+  331/511/515/632/635 — đúng số hiệu VAS nêu trong docs/business-spec/08 mục
+  4.1) vì các bút toán tự động (AP/AR) CHẶN CỨNG nếu thiếu tài khoản đích.
+- GL thủ công (JournalEntry + JournalEntryLine): tạo (≥2 dòng, validate Nợ=Có
+  ngay ở cả FE và API) → `post` (Draft→Posted, validate cân đối lại lần nữa)
+  → `lock` (Posted→Locked, không sửa được nữa — đúng mục 7 "không cho sửa
+  chứng từ đã khóa sổ").
+- `src/modules/finance/lib/posting.ts#postJournalEntry()`: hàm dùng chung để
+  tự động sinh bút toán cân đối theo MÃ tài khoản (không phải accountId) —
+  dùng cho mọi bút toán tự động bên dưới, tra tài khoản theo `code` trong
+  công ty, chặn cứng nếu thiếu.
+- `src/modules/finance/lib/currency.ts#convertToVnd()`: cài đặt ĐÚNG công
+  thức đã chốt ở docs/currency-handling.md — `amountVND = round(amount /
+  10^decimalDigits(currency) * exchangeRate)`.
+- AP — Supplier Invoice: ghi nhận hóa đơn mua hàng (đồng thời là điểm ghi
+  nhận giá trị hàng nhập kho về kế toán — Nợ 156/Có 331 theo đúng mục 11,
+  quy đổi ra VND theo tỷ giá hóa đơn). KHÔNG hook vào GoodsReceipt (Phase 2)
+  vì giá vốn thực tế chỉ chốt sau khi phân bổ Landed Cost — SupplierInvoice
+  là chứng từ kế toán độc lập tương ứng.
+- AR — Customer Invoice: ghi nhận hóa đơn bán hàng (Nợ 131/Có 511) VÀ cộng
+  thẳng vào `Customer.currentDebt` — nối lại vòng lặp Credit Control của
+  Phase 5 (SalesOrder.confirm() kiểm tra currentDebt nhưng trước Phase 8
+  không có nguồn nào thực sự cập nhật nó).
+- Thu/Chi (Payment): `direction=OUT` thanh toán Supplier Invoice (chặn vượt
+  số còn nợ, chặn thanh toán hóa đơn đã PAID) — tự tính chênh lệch tỷ giá
+  đúng công thức `FX Diff = amountForeign * (paymentRate - invoiceRate)`,
+  ghi thêm dòng 635 (lỗ) hoặc 515 (lãi) để bút toán vẫn cân đối.
+  `direction=IN` thu tiền Customer Invoice (Nợ 111/112, Có 131) — trừ thẳng
+  vào `Customer.currentDebt`. Chỉ hỗ trợ 2 chiều phổ biến nhất, hoàn tiền
+  ngược chiều để lại (xem "Còn thiếu").
+- FX Revaluation cuối kỳ: action `POST /api/finance/fx-revaluation` đánh giá
+  lại TOÀN BỘ Supplier Invoice còn nợ theo 1 loại ngoại tệ ở tỷ giá mới,
+  ghi 1 bút toán điều chỉnh tổng hợp (635/515) — KHÔNG đổi `exchangeRate`
+  gốc của từng hóa đơn (đó là tỷ giá ghi nhận ban đầu, giữ nguyên để tính
+  đúng chênh lệch thực tại lúc thanh toán thật). AR không có FX exposure
+  (CustomerInvoice không có field exchangeRate trong schema — nội địa VND).
+- Aging Report công nợ phải thu: nhóm hóa đơn AR còn nợ theo 5 mốc (chưa đến
+  hạn / 0-30 / 31-60 / 61-90 / >90 ngày quá hạn) theo đúng mục 14.
+- Bank Account, Fixed Asset (khấu hao đường thẳng, action `depreciate` trừ
+  đúng 1 kỳ = originalCost/usefulLifeMonths, chặn ở 0), Budget: crud-factory/
+  action đơn giản theo đúng tinh thần ROADMAP "tối giản" cho 2 mục này.
+- Đã kiểm thử THẬT qua curl, xác minh CHÍNH XÁC TỪNG ĐỒNG: PO test 10,000.00
+  USD @ 24,500 → bút toán tự động đúng 245,000,000 ₫ (156/331); hóa đơn bán
+  5,000,000 ₫ → đúng Nợ 131/Có 511 + currentDebt khách hàng tăng đúng
+  5,000,000; JE thủ công không cân đối bị chặn đúng; thanh toán 5,000 USD ở
+  tỷ giá MỚI 25,000 (invoice ghi nhận ở 24,500) → JE thanh toán đúng: Nợ 331
+  122,500,000 / Có 111 125,000,000 / Nợ 635 (lỗ) 2,500,000 — cân đối tuyệt
+  đối; thanh toán vượt số còn nợ bị chặn đúng; thu tiền AR đủ → status PAID +
+  currentDebt về đúng 0; FX revaluation trên hóa đơn USD còn nợ khác (2,000
+  USD, 24,000→25,000) → lỗ đúng 2,000,000 ₫; khấu hao tài sản 360,000,000/36
+  tháng → đúng còn lại 350,000,000. Playwright xác nhận UI cả 9 trang, trong
+  đó trang GL hiển thị đầy đủ toàn bộ các bút toán tự động đã tạo suốt buổi
+  test. `npm run build`/`type-check`/`lint` đều sạch — bundle middleware vẫn
+  giữ nguyên ~40KB (không tái phạm bug Phase 7 dù thêm rất nhiều permission
+  mới, đã tận dụng đúng cơ chế session mới).
+
+Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 8):
+- Inventory Accounting cho phía XUẤT bán (Nợ 632/Có 156 khi bán hàng) — chưa
+  tự động vì hệ thống CHƯA có cơ chế theo dõi giá vốn bình quân/FIFO trên
+  từng SKU (`InventoryBalance` không có field giá trị/cost, chỉ có số
+  lượng) — đúng như mục 12 gợi ý "Moving Average kết hợp Landed Cost" nhưng
+  đây là 1 tính năng lớn (thêm field + cập nhật mọi nơi tồn kho biến động),
+  để lại làm riêng nếu cần chính xác giá vốn, không code cứng số liệu ước
+  lượng.
+- Hoàn tiền ngược chiều (IN từ NCC, OUT cho KH) — Payment hiện chỉ hỗ trợ 2
+  chiều phổ biến nhất.
+- Bank Reconciliation (đối chiếu sao kê ngân hàng, mục 17), Budget vs Actual
+  variance report (mục 22 — cần rollup từ GL theo cost center, chưa làm),
+  Cost Center profitability analysis (mục 21) — đều cần thêm hạ tầng
+  báo cáo tổng hợp, để lại cho phase báo cáo/BI (Phase 11) nếu cần.
+  Depreciation job tự động chạy hàng tháng (mục 19) — hiện thao tác thủ công.
+- Approval cho bút toán giá trị lớn/điều chỉnh cuối kỳ (mục 7) — GL hiện
+  không có ngưỡng số tiền yêu cầu duyệt, mọi user có quyền `journal-entry:
+  post` đều post được trực tiếp.
+- Chưa có test tự động — vẫn kiểm thử thủ công qua curl + Playwright.
+
+File liên quan: src/modules/finance/**, src/app/api/finance/**,
+src/app/(app)/finance/**, prisma/seed.ts (seed 9 tài khoản mặc định + thêm
+resource account/cost-center/journal-entry/supplier-invoice/
+customer-invoice/payment/bank-account/fixed-asset/budget/fx-revaluation).
+```
+
+---
+
 ## Quyết định kỹ thuật quan trọng đã chốt (không tự ý đổi)
 
 - Tiền tệ lưu Int, không Decimal/Float (lý do: SQLite → SQL Server migrate an toàn)
@@ -444,6 +533,8 @@ rma-request/core-return/repair-order/field-service-request).
 - `Shipment.status` dùng chung enum `DeliveryRequestStatus` với `DeliveryRequest` (không tạo enum `ShipmentStatus` riêng) vì 2 bảng đi cùng nhịp trạng thái (PLANNED→ON_DELIVERY→DELIVERED→CLOSED) theo đúng thiết kế ERD gốc — khi 1 Shipment chuyển trạng thái, code cập nhật `updateMany` cho mọi `DeliveryRequest` liên quan trong cùng transaction để đồng bộ.
 - **KHÔNG BAO GIỜ nhúng danh sách permission đầy đủ vào JWT/cookie** (bài học đau từ Phase 7 — xem chi tiết ở "Việc đang dở" Phase 7). Cookie giới hạn ~4096 byte; hệ thống càng nhiều permission theo từng phase càng dễ vượt ngưỡng và trình duyệt sẽ LẶNG LẼ từ chối lưu (không báo lỗi rõ ràng). JWT (`SessionTokenPayload` trong session.ts) chỉ ký sub/companyId/username/employeeId/roles; `getCurrentSession()` nạp lại `permissions` từ DB mỗi request qua `loadUserPermissions()`.
 - `src/middleware.ts` (Edge runtime) chỉ được import hằng số/hàm từ `src/modules/auth/lib/session-constants.ts` — TUYỆT ĐỐI không import từ `session.ts` (file này import `permissions.ts` → kéo theo Prisma Client, không chạy được ở Edge và làm phình bundle middleware). Khi thêm hằng số dùng chung giữa middleware và route handler, luôn cân nhắc đặt ở `session-constants.ts` thay vì `session.ts`.
+- Mọi bút toán tự động (AP/AR) PHẢI đi qua `src/modules/finance/lib/posting.ts#postJournalEntry()` (tra tài khoản theo mã "code", validate Nợ=Có, chặn cứng nếu thiếu tài khoản) — không tự tạo `JournalEntry`/`JournalEntryLine` rải rác ở module khác, tránh bút toán sai/thiếu tài khoản đích. Quy đổi ngoại tệ ra VND PHẢI dùng `src/modules/finance/lib/currency.ts#convertToVnd()` (đúng công thức đã chốt ở docs/currency-handling.md), không tự viết công thức quy đổi riêng ở nơi khác.
+- Chart of Accounts tối thiểu (111/112/131/156/331/511/515/632/635) được seed sẵn trong `prisma/seed.ts` — nếu xóa/đổi mã các tài khoản này ở dữ liệu thật, mọi bút toán tự động AP/AR/FX sẽ lỗi cứng (`ACCOUNT_NOT_FOUND`) vì `postJournalEntry()` tra theo đúng các mã này.
 - Xem đầy đủ tại CLAUDE.md mục 3-4 và ERD tại docs/data-model.md
 
 ## Vấn đề/rủi ro đã phát hiện (điền khi gặp)

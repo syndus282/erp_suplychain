@@ -19,7 +19,7 @@
 | 8 | Finance & Accounting | ✅ Hoàn thành | Branch `claude/phase-8-finance` (kế thừa Phase 7) |
 | 9 | HRM & Payroll | ✅ Hoàn thành | Branch `claude/phase-9-hrm` (kế thừa Phase 8) |
 | 10 | Workflow/Approval hoàn chỉnh | ✅ Hoàn thành | Branch `claude/phase-10-workflow` (kế thừa Phase 9) |
-| 11 | BI Dashboard | ⬜ | |
+| 11 | BI Dashboard | ✅ Hoàn thành | Branch `claude/phase-11-bi-dashboard` (kế thừa Phase 10) |
 | 12 | Contract Management + Online Channel | ⬜ | |
 
 Ký hiệu: ⬜ Chưa bắt đầu · 🔶 Đang làm dở · ✅ Hoàn thành · ⚠️ Có lỗi cần fix
@@ -668,6 +668,84 @@ src/components/layout/{Topbar,NotificationBell}.tsx (qua
 src/modules/workflow/components/NotificationBell.tsx), prisma/seed.ts (role
 MANAGER + user manager + resource approval-matrix/audit-log/notification/role
 + 2 mốc Approval Matrix mẫu).
+```
+
+```
+Phase 11 - Business Intelligence & Dashboard: HOÀN THÀNH trên branch
+`claude/phase-11-bi-dashboard` (kế thừa từ Phase 10).
+
+Đã xong (phạm vi tối giản theo ROADMAP: "Dashboard tổng hợp, Alert
+Management" — KHÔNG làm data warehouse/ETL/predictive analytics như mục
+29-30 của business-spec, những phần đó cần hạ tầng ngoài phạm vi 1 app
+Next.js đơn lẻ):
+- Toàn bộ tính động trên dữ liệu hiện có (`src/modules/bi/**`), KHÔNG thêm
+  bảng Alert/Dashboard/KPI nào — đúng tinh thần đã xác nhận: schema Phase 0
+  không có model nào cho BI, mọi con số đều suy ra từ nghiệp vụ đã ghi nhận.
+- Executive Dashboard (thay thế trang `/dashboard` placeholder để lại từ
+  Phase 1): doanh thu hôm nay/tháng/năm lấy từ GL (Nợ/Có tài khoản 511 —
+  dùng lại đúng nguồn Phase 8 ghi khi tạo CustomerInvoice, KHÔNG cộng lại từ
+  SalesOrder để tránh 2 công thức doanh thu lệch nhau), công nợ phải thu
+  (dùng lại logic bucket của `ar-aging.ts`), giá trị tồn kho ước tính, top 5
+  sản phẩm/khách hàng theo doanh thu, tuổi tồn kho theo 4 mốc (0-90/90-180/
+  180-365/>365 ngày).
+- Định giá tồn kho (`getExecutiveDashboard`) dùng đơn giá BÌNH QUÂN từ các
+  dòng PO của từng sản phẩm — ĐÃ GHI RÕ TRONG CODE đây là xấp xỉ, KHÔNG phải
+  giá vốn FIFO/bình quân gia quyền chuẩn kế toán và chưa cộng landed cost
+  phân bổ (Phase 2), vì Product/LotBatch/InventoryBalance không có field lưu
+  sẵn "giá vốn" — không tự chế công thức costing chưa được xác nhận nghiệp
+  vụ, giống tinh thần "không code cứng công thức BHXH/thuế" của Phase 9.
+- Tuổi tồn kho tính bằng cách tra `StockMovement` loại RECEIPT/TRANSFER_IN
+  gần nhất theo đúng tổ hợp product+warehouse+lot (không có field "ngày
+  nhập" lưu sẵn trên `InventoryBalance`) — bucket nào không tìm được lần
+  nhập nào (dữ liệu cũ) xếp vào "unknown" thay vì bỏ sót khỏi tổng.
+- Alert Management (`src/modules/bi/api/alerts.ts#computeActiveAlerts`), 3
+  loại có schema/dữ liệu hỗ trợ đủ tốt để làm đúng (không phịa alert không
+  có cơ sở dữ liệu):
+  1. Tồn kho dưới điểm đặt hàng lại — dùng `Product.reorderPoint` (có sẵn từ
+     Phase 1, CHƯA từng được dùng ở đâu cho tới phase này).
+  2. Công nợ phải thu quá hạn >30 ngày — dùng lại logic `ar-aging.ts`.
+  3. Tỷ lệ khiếu nại bảo hành bất thường theo sản phẩm (>10%, tối thiểu 5
+     lượt đăng ký để tránh báo động giả với mẫu quá nhỏ).
+  Severity `danger`/`warning` theo mức độ nghiêm trọng. Trang `/bi/alerts`
+  hiển thị danh sách, Dashboard có link nhanh kèm số đếm cảnh báo đang mở.
+- Đã CÂN NHẮC nhưng KHÔNG làm Logistics SLA alert (mục 26) vì `Shipment`
+  không có field ngày giao dự kiến/SLA target trong schema — thêm field mới
+  cho 1 alert đơn lẻ không đáng, để lại cho phase Logistics nếu cần sau.
+- Sửa 1 bug nhỏ phát hiện khi test: `products.ts` (custom handler, không
+  qua crud-factory) trả `INTERNAL_ERROR` thay vì lỗi rõ ràng khi trùng mã SKU
+  — GHI NHẬN lại đây nhưng KHÔNG sửa (ngoài phạm vi Phase 11, không phải bug
+  do phase này gây ra).
+- Đã kiểm thử THẬT qua curl: dashboard baseline (toàn 0) → tạo sản phẩm có
+  `reorderPoint=100` → PO → submit → manager duyệt (tái dùng nguyên workflow
+  Phase 10) → nhập kho 20 → dashboard cập nhật đúng `inventoryValue`
+  (20 × 500,000 = 10,000,000), `skuCount=1`, aging `days0to90=20` → tạo
+  CustomerInvoice 10,000,000 → doanh thu hôm nay/tháng/năm cộng đúng, xuất
+  hiện đúng trong top sản phẩm/khách hàng → hóa đơn `dueDate` quá khứ xa
+  (quá hạn 188 ngày) → alert AR_OVERDUE đúng, alert INVENTORY_REORDER đúng
+  severity (`danger` khi tồn=0, `warning` khi tồn=20<100). Playwright xác
+  nhận UI: Dashboard hiển thị đủ KPI/top sản phẩm/khách hàng/tuổi tồn kho,
+  trang Cảnh báo hiển thị đúng 5 cảnh báo với icon/màu theo severity.
+  `npm run build`/`type-check`/`lint` đều sạch — middleware vẫn 39.5KB.
+
+Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 11):
+- Data Warehouse/ETL, tích hợp Power BI/Tableau/Looker (mục 29-30) — ngoài
+  phạm vi 1 app Next.js đơn lẻ, cần hạ tầng riêng.
+- Predictive Analytics (dự báo nhu cầu, phát hiện bất thường bằng AI, mục
+  29) — cần dữ liệu lịch sử đủ lớn + mô hình riêng, không code cứng.
+- Cash Flow Forecast (mục 20), Sales Performance Dashboard theo target/KPI
+  cá nhân (mục 8, 25 — cần thêm khái niệm "chỉ tiêu" chưa có trong schema),
+  Landed Cost Analytics chi tiết theo lô (mục 16) — để lại vì cần thêm dữ
+  liệu đầu vào (chỉ tiêu doanh số) hoặc tính toán phức tạp hơn phạm vi tối
+  giản của phase này.
+- Phân quyền dashboard theo từng vai trò (CEO xem hết, CFO chỉ tài chính...,
+  mục 28) — hiện tất cả người có quyền `bi-dashboard:read` xem toàn bộ 1
+  dashboard chung, chưa tách theo vai trò.
+- Logistics SLA Alert, Sales Performance theo target — xem lý do ở trên.
+- Chưa có test tự động — vẫn kiểm thử thủ công qua curl + Playwright.
+
+File liên quan: src/modules/bi/**, src/app/api/bi/**, src/app/(app)/bi/**,
+src/app/(app)/dashboard/page.tsx (thay placeholder Phase 1 bằng
+DashboardClient thật), prisma/seed.ts (resource bi-dashboard).
 ```
 
 ---

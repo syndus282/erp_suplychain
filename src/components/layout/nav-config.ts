@@ -55,6 +55,7 @@ import {
   CalendarOff,
   Percent,
   Banknote,
+  AlertTriangle,
 } from "lucide-react";
 
 export interface NavItem {
@@ -71,7 +72,10 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Tổng quan",
-    items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Cảnh báo", href: "/bi/alerts", icon: AlertTriangle },
+    ],
   },
   {
     label: "Dữ liệu nền",

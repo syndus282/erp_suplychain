@@ -89,6 +89,8 @@ const RESOURCES = [
   "audit-log",
   "notification",
   "role", // chỉ read — dùng để chọn approverRoleId khi cấu hình Approval Matrix
+  // Phase 11 — Business Intelligence & Dashboard
+  "bi-dashboard", // chỉ read — toàn bộ báo cáo tổng hợp/cảnh báo đều tính động, không có form tạo/sửa
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
@@ -145,6 +147,7 @@ const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly stri
   "audit-log": ["read"], // chỉ đọc, ghi tự động từ decideApprovalStep
   notification: ["read"], // mark-as-read dùng chung quyền read (thao tác trên inbox của chính mình)
   role: ["read"],
+  "bi-dashboard": ["read"],
 };
 
 async function main() {

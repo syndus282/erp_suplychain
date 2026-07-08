@@ -14,7 +14,7 @@
 | 3 | Inventory & Warehouse | ✅ Hoàn thành | Branch `claude/phase-3-inventory` (kế thừa Phase 2) |
 | 4 | Distribution & Consignment | ✅ Hoàn thành | Branch `claude/phase-4-distribution` (kế thừa Phase 3) |
 | 5 | Sales Order & Customer | ✅ Hoàn thành | Branch `claude/phase-5-sales` (kế thừa Phase 4) |
-| 6 | Logistics & Delivery | ⬜ | |
+| 6 | Logistics & Delivery | ✅ Hoàn thành | Branch `claude/phase-6-logistics` (kế thừa Phase 5) |
 | 7 | Warranty/RMA/Field Service | ⬜ | |
 | 8 | Finance & Accounting | ⬜ | |
 | 9 | HRM & Payroll | ⬜ | |
@@ -239,6 +239,80 @@ prisma/seed.ts (thêm resource price-list/quotation/sales-order/sales-return).
 
 ---
 
+Phase 6 - Logistics & Delivery: HOÀN THÀNH trên branch `claude/phase-6-logistics`
+(kế thừa từ Phase 5). Đây là phase thực hiện bước "xuất kho thật" mà Phase 5
+đã cố ý để lại (Sales Order chỉ dừng ở `ALLOCATED` — giữ hàng, chưa trừ tồn).
+
+Đã xong:
+- Master data logistics (crud-factory): Vehicle (xe nội bộ), Driver (gắn với
+  Employee có sẵn từ Org), Carrier (đơn vị vận chuyển ngoài).
+- Delivery Request: `createDeliveryRequestFromSalesOrder` — chỉ tạo được từ
+  Sales Order đã `ALLOCATED`, copy các dòng còn `qtyReserved > qtyDelivered`,
+  chặn tạo trùng cho cùng 1 SO. 3 nguồn còn lại trong enum
+  `DeliverySourceType` (CONSIGNMENT_SHIPMENT/WARRANTY_REPLACEMENT/
+  STOCK_TRANSFER) để lại — đã có luồng xuất kho riêng từ Phase 3-4, chưa cần
+  bọc qua Delivery Request ở Phase 6.
+- Shipment (chuyến hàng — gom chuyến theo docs/business-spec/06 mục 6):
+  - `create`: chọn kho xuất + xe/tài xế/ĐVVC (optional) + nhiều Delivery
+    Request đang `DRAFT` → tạo `ShipmentLine` theo từng dòng, chuyển các
+    Delivery Request sang `PLANNED`.
+  - `dispatch` (PLANNED→ON_DELIVERY): đây là nơi THỰC SỰ trừ tồn kho — gọi
+    `recordStockMovement` type `ISSUE` (âm) cho từng dòng, đồng thời với
+    nguồn SALES_ORDER thì gọi `releaseReservation` (giải phóng phần đã giữ
+    từ Phase 5) và cộng `SalesOrderLine.qtyDelivered`. Chuyển Delivery
+    Request liên quan sang `ON_DELIVERY`.
+  - `pod` (ON_DELIVERY→DELIVERED): tạo `ProofOfDelivery` (người nhận, ghi
+    chú), chuyển Delivery Request liên quan sang `DELIVERED`; với mỗi Sales
+    Order liên quan, nếu MỌI dòng đã `qtyDelivered >= qty` thì tự động
+    chuyển `SalesOrder.status = DELIVERED`.
+  - `close` (DELIVERED→CLOSED): đóng chuyến + Delivery Request liên quan.
+  - Delivery Cost: thêm chi phí (nhiên liệu/cầu đường/thuê ngoài/bốc xếp)
+    gắn vào chuyến, xem ở trang chi tiết `/logistics/shipments/[id]` cùng
+    danh sách POD.
+- Đã kiểm thử THẬT qua curl full-cycle: seed tồn kho 50 → tạo + confirm +
+  allocate SO 20 đơn vị (onHand 50/reserved 20/available 30) → tạo Delivery
+  Request từ SO → tạo Shipment gom request đó → dispatch (onHand 50→30,
+  reserved 20→0, available giữ 30 — đúng công thức) → kiểm tra
+  `SalesOrderLine.qtyDelivered = 20` → ghi nhận POD → xác nhận `SalesOrder`
+  tự chuyển `DELIVERED` → thêm chi phí giao hàng → đóng chuyến. Playwright
+  xác nhận UI cả 6 trang (Xe, Tài xế, ĐVVC, Yêu cầu giao hàng, Chuyến hàng,
+  chi tiết chuyến hàng có POD + chi phí). `npm run build`/`type-check`/
+  `lint` đều sạch.
+- Sửa 1 bug hạ tầng dùng chung phát hiện khi test UI: `createCrudApi`
+  (crud-factory) không cho tùy biến sort mặc định — mọi resource crud-factory
+  đều bị ép fallback `{createdAt:"desc"}` kể cả khi model không có cột
+  `createdAt` (model `Driver` chỉ có `id`). Thêm option `defaultSort` vào
+  `CrudConfig`, dùng cho Driver (`{id:"asc"}`) — cùng gốc bug với
+  `SalesReturn` ở Phase 5, khác chỗ lần này sửa tận gốc ở factory dùng chung
+  thay vì sửa từng nơi gọi.
+
+Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 6):
+- Delivery Planning/Route Planning tự động (gom chuyến theo khu vực/tuyến
+  đường - mục 6) — Phase 6 chỉ gom chuyến thủ công (người dùng tự chọn
+  Delivery Request nào vào chuyến nào), chưa có gợi ý/tối ưu tuyến.
+  Picking & Packing chi tiết (mục 9: số kiện, trọng lượng, nhãn) cũng chưa
+  có — dispatch coi như xuất kho xong ngay, không có bước soạn hàng riêng.
+- GPS Tracking, Delivery Tracking thời gian thực (mục 13-14) — không có hạ
+  tầng GPS, ngoài phạm vi ERP nội bộ.
+- Giao hàng thất bại/giao thiếu/giao sai + Delivery Return (mục 16-18) —
+  Shipment hiện chỉ có đường đi thẳng PLANNED→ON_DELIVERY→DELIVERED→CLOSED,
+  chưa có nhánh `FAILED` (dù đã có sẵn trong `DeliveryRequestStatus`) hay
+  luồng trả hàng sau giao. Sales Return (Phase 5) xử lý trả hàng SAU KHI đã
+  ghi nhận giao thành công — khác với "giao thất bại, hàng chưa từng đến
+  tay khách" của mục này.
+- Đơn hàng gấp (đánh dấu ưu tiên, đẩy xử lý trước) — field `priority` đã có
+  sẵn trên `DeliveryRequest` nhưng chưa có UI nhập/hiển thị hay logic sắp
+  xếp theo độ ưu tiên.
+- Chưa có test tự động — vẫn kiểm thử thủ công qua curl + Playwright.
+
+File liên quan: src/modules/logistics/**, src/app/api/logistics/**,
+src/app/(app)/logistics/**, src/lib/api/crud-factory.ts (thêm option
+defaultSort), prisma/seed.ts (thêm resource vehicle/driver/carrier/
+delivery-request/shipment/delivery-cost).
+```
+
+---
+
 ## Quyết định kỹ thuật quan trọng đã chốt (không tự ý đổi)
 
 - Tiền tệ lưu Int, không Decimal/Float (lý do: SQLite → SQL Server migrate an toàn)
@@ -267,7 +341,9 @@ prisma/seed.ts (thêm resource price-list/quotation/sales-order/sales-return).
 - Tồn kho ký gửi (`ConsignmentBalance`) tách hoàn toàn khỏi `InventoryBalance` — không dùng chung bảng, không coi đại lý là 1 Warehouse ảo. Khi ký gửi/thu hồi, `recordStockMovement` chỉ chạm vào phía kho công ty (CONSIGNMENT_OUT/CONSIGNMENT_RETURN); phía đại lý cập nhật thủ công qua `ConsignmentBalance` trong cùng transaction.
 - Giữ hàng cho Sales Order (Stock Reservation) dùng 2 hàm riêng `reserveStock`/`releaseReservation` (src/modules/inventory/lib/stock-ledger.ts) — CHỈ chuyển `availableQty`↔`reservedQty`, không đụng `onHandQty`/tạo `StockMovement`. Xuất kho thật (ISSUE, trừ `onHandQty`) là hành động riêng thuộc Phase 6 (Logistics) khi giao hàng — Sales Order (Phase 5) dừng lại ở bước "giữ chỗ", không tự xuất kho.
 - Sales Order dùng lại nguyên khung Workflow Phase 1 (ApprovalRequest) khi cần duyệt vượt chính sách giá — vì `SalesOrderStatus` không có literal APPROVED/REJECTED (khác `PurchaseRequestStatus`), `entity-sync.ts` phải map thủ công (APPROVED→CONFIRMED, REJECTED→CANCELLED) thay vì gán thẳng như case PurchaseRequest.
-- `parseSort()` có fallback mặc định `{createdAt:"desc"}` — bảng nào KHÔNG có cột `createdAt` (vd. `SalesReturn` chỉ có `requestedAt`) PHẢI truyền fallback tường minh, nếu không Prisma sẽ báo lỗi `Unknown argument` lúc runtime (không bắt được ở type-check vì `orderBy` được build động).
+- `parseSort()` có fallback mặc định `{createdAt:"desc"}` — bảng nào KHÔNG có cột `createdAt` (vd. `SalesReturn` chỉ có `requestedAt`, `Driver` không có cột thời gian nào) PHẢI truyền fallback tường minh, nếu không Prisma sẽ báo lỗi `Unknown argument` lúc runtime (không bắt được ở type-check vì `orderBy` được build động). `createCrudApi` có option `defaultSort` cho đúng việc này.
+- Xuất kho thật (trừ `onHandQty`, gọi `recordStockMovement` type `ISSUE`) CHỈ xảy ra ở bước `Shipment.dispatch()` (Phase 6) — không xảy ra ở Sales Order Phase 5 (chỉ giữ hàng) hay ở lúc tạo Delivery Request (chỉ là yêu cầu, chưa động vào kho). Đây là điểm phân chia trách nhiệm rõ giữa 2 phase, tránh trừ tồn 2 lần.
+- `Shipment.status` dùng chung enum `DeliveryRequestStatus` với `DeliveryRequest` (không tạo enum `ShipmentStatus` riêng) vì 2 bảng đi cùng nhịp trạng thái (PLANNED→ON_DELIVERY→DELIVERED→CLOSED) theo đúng thiết kế ERD gốc — khi 1 Shipment chuyển trạng thái, code cập nhật `updateMany` cho mọi `DeliveryRequest` liên quan trong cùng transaction để đồng bộ.
 - Xem đầy đủ tại CLAUDE.md mục 3-4 và ERD tại docs/data-model.md
 
 ## Vấn đề/rủi ro đã phát hiện (điền khi gặp)

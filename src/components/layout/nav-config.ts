@@ -31,6 +31,11 @@ import {
   FileSignature,
   ShoppingBag,
   RotateCcw,
+  Bus,
+  UserRound,
+  Building,
+  PackageOpen,
+  Send,
 } from "lucide-react";
 
 export interface NavItem {
@@ -107,6 +112,16 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Báo giá", href: "/sales/quotations", icon: FileSignature },
       { label: "Đơn hàng bán", href: "/sales/orders", icon: ShoppingBag },
       { label: "Trả hàng", href: "/sales/returns", icon: RotateCcw },
+    ],
+  },
+  {
+    label: "Giao hàng & Vận tải",
+    items: [
+      { label: "Yêu cầu giao hàng", href: "/logistics/delivery-requests", icon: PackageOpen },
+      { label: "Chuyến giao hàng", href: "/logistics/shipments", icon: Send },
+      { label: "Xe giao hàng", href: "/logistics/vehicles", icon: Bus },
+      { label: "Tài xế", href: "/logistics/drivers", icon: UserRound },
+      { label: "Đơn vị vận chuyển", href: "/logistics/carriers", icon: Building },
     ],
   },
   {

@@ -51,6 +51,13 @@ const RESOURCES = [
   "quotation",
   "sales-order",
   "sales-return",
+  // Phase 6 — Logistics & Delivery
+  "vehicle",
+  "driver",
+  "carrier",
+  "delivery-request",
+  "shipment",
+  "delivery-cost",
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
@@ -65,6 +72,7 @@ const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
   quotation: ["send", "accept", "reject", "convert"],
   "sales-order": ["confirm", "allocate", "cancel"],
   "sales-return": ["approve", "reject", "receive", "qc", "refund"],
+  shipment: ["dispatch", "pod", "close"],
 };
 
 /** Resource chỉ có 1 phần action chuẩn (vd. "user" chỉ có read, chưa có UI tạo/sửa User ở Phase 1-2). */
@@ -74,6 +82,8 @@ const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly stri
   "stock-movement": ["read"],
   "serial-number": ["read"],
   "consignment-balance": ["read"],
+  "delivery-request": ["read", "create"], // tạo qua action từ Sales Order, không có form sửa tay
+  "delivery-cost": ["read", "create"],
 };
 
 async function main() {

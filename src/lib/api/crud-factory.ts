@@ -34,6 +34,8 @@ interface CrudConfig<TCreate, TUpdate> {
   updateSchema: z.ZodType<TUpdate, z.ZodTypeDef, any>;
   searchFields?: string[];
   sortableFields?: string[];
+  /** Ghi đè sort mặc định khi model không có cột `createdAt` (vd. Driver). */
+  defaultSort?: Record<string, "asc" | "desc">;
   include?: Record<string, unknown>;
 }
 
@@ -51,7 +53,11 @@ export function createCrudApi<TCreate, TUpdate>(config: CrudConfig<TCreate, TUpd
     const url = new URL(request.url);
     const { page, pageSize, skip, take } = parsePagination(url.searchParams);
     const search = url.searchParams.get("search");
-    const orderBy = parseSort(url.searchParams, config.sortableFields ?? ["createdAt"]);
+    const orderBy = parseSort(
+      url.searchParams,
+      config.sortableFields ?? ["createdAt"],
+      config.defaultSort ?? { createdAt: "desc" }
+    );
 
     const where: Record<string, unknown> = { companyId: session.companyId };
     if (search && config.searchFields?.length) {

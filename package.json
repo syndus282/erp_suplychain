@@ -10,7 +10,8 @@
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:db:push": "prisma db push",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "seed:demo": "node scripts/seed-demo.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

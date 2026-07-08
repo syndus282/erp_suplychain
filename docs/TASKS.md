@@ -856,6 +856,54 @@ contract).
 === TOÀN BỘ 12 PHASE THEO ROADMAP.MD ĐÃ HOÀN THÀNH ===
 ```
 
+```
+Việc ngoài roadmap (theo yêu cầu người dùng sau khi xong 12 phase), branch
+`claude/menu-and-demo-data` (kế thừa Phase 12):
+
+1. Sidebar 2 cấp: trước đây liệt kê hết ~13 module x toàn bộ mục con cùng
+   lúc (quá dài, khó dùng). Giờ mặc định chỉ hiện menu con của module đang
+   đứng; bấm vào tiêu đề module (góc trên Sidebar) để mở màn hình chọn
+   module (dạng lưới, mỗi module có icon riêng — thêm field `icon` vào
+   `NavGroup` trong `nav-config.ts`), chọn module khác sẽ điều hướng tới
+   mục đầu tiên của module đó. File: `src/components/layout/Sidebar.tsx`,
+   `src/components/layout/nav-config.ts`.
+
+2. `scripts/seed-demo.mjs`: script tạo dữ liệu mẫu phong phú cho TOÀN BỘ
+   module (không phải seed bắt buộc để chạy được hệ thống — đó vẫn là
+   `prisma/seed.ts`) để xem/demo UI có đủ trường hợp (nhiều trạng thái khác
+   nhau ở mọi loại chứng từ). Chạy: `npm run prisma:seed` (dữ liệu nền tối
+   thiểu) → `npm run dev` → `npm run seed:demo` (script này, cần dev server
+   đang chạy ở `http://localhost:3000`, hoặc truyền URL khác qua tham số).
+   Script gọi THẲNG QUA HTTP API (giống hệt UI) thay vì insert thẳng Prisma,
+   để mọi transaction/validation/rule nghiệp vụ chạy đúng như thật — không
+   có dữ liệu "giả" bỏ qua business logic. Tạo dữ liệu cho: tổ chức (2 chi
+   nhánh, 3 phòng ban, 3 chức vụ, 4 nhân viên), dữ liệu nền (10 sản phẩm đủ
+   manageSerial/manageLot/reorderPoint, 2 kho), mua hàng (3 NCC, 8 PR, 6 PO
+   ở đủ trạng thái DRAFT/PENDING_APPROVAL/APPROVED/PARTIALLY_RECEIVED/
+   CLOSED, 1 lô nhập khẩu ủy thác có landed cost), kho vận (điều chuyển,
+   kiểm kê có variance), phân phối (6 khách hàng đủ loại, ký gửi đủ vòng
+   đời, thu hồi ký gửi), bán hàng (bảng giá, báo giá đủ trạng thái, 7 đơn
+   hàng bán đủ trạng thái kể cả PENDING_APPROVAL do chiết khấu >20%, trả
+   hàng REFUNDED + REQUESTED), giao hàng (1 chuyến đi hết vòng đời + chi
+   phí), bảo hành (policy, registration, 3 claim đủ trạng thái kể cả đi qua
+   RepairOrder đủ 5 bước, RMA, Core Return, Field Service), tài chính (GL
+   thủ công, AP/AR có hóa đơn quá hạn + ngoại tệ để demo FX, tài sản cố định
+   khấu hao, ngân sách), nhân sự (hợp đồng lao động, chấm công, nghỉ phép đủ
+   trạng thái, hoa hồng, bảng lương PAID+DRAFT), 5 hợp đồng (2 sắp hết hạn
+   để demo alert), 2 đơn hàng online qua `/shop` (không cần đăng nhập).
+3. Lưu ý khi seed.prisma.env đổi model: PO giá trị NCC nước ngoài (ECU
+   nhập khẩu) phải giữ dưới 50 triệu VND quy đổi — nếu vượt sẽ rơi vào tier
+   ADMIN của Approval Matrix (Phase 10), mà admin cũng là người tạo/trình
+   duyệt nên bị chặn bởi luật Segregation of Duties, không duyệt được để đi
+   tiếp nhận hàng trong demo.
+4. Đơn hàng bán chỉ tự chuyển PENDING_APPROVAL khi chiết khấu >20% so bảng
+   giá NẾU khách hàng có gắn `priceListId` — phải PATCH gán bảng giá cho
+   khách trước khi tạo đơn hàng demo có chiết khấu, nếu không hệ thống
+   không có gì để so sánh nên bỏ qua bước duyệt (không phải bug, đúng thiết
+   kế `sales-orders.ts`: giá niêm yết lấy từ đúng bảng giá của khách, không
+   phải bảng giá bất kỳ trong hệ thống).
+```
+
 ---
 
 ## Quyết định kỹ thuật quan trọng đã chốt (không tự ý đổi)

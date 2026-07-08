@@ -66,12 +66,15 @@ export interface NavItem {
 
 export interface NavGroup {
   label: string;
+  /** Icon đại diện cho cả module — hiển thị ở màn hình chọn module (Sidebar). */
+  icon: LucideIcon;
   items: NavItem[];
 }
 
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Tổng quan",
+    icon: LayoutDashboard,
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Cảnh báo", href: "/bi/alerts", icon: AlertTriangle },
@@ -79,6 +82,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Dữ liệu nền",
+    icon: Package,
     items: [
       { label: "Sản phẩm", href: "/master-data/products", icon: Package },
       { label: "Nhóm hàng", href: "/master-data/categories", icon: Tags },
@@ -89,6 +93,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Tổ chức",
+    icon: Building2,
     items: [
       { label: "Chi nhánh", href: "/org/branches", icon: Building2 },
       { label: "Phòng ban", href: "/org/departments", icon: Network },
@@ -98,6 +103,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Mua hàng",
+    icon: ShoppingCart,
     items: [
       { label: "Nhà cung cấp", href: "/procurement/suppliers", icon: Truck },
       { label: "Đề nghị mua hàng", href: "/procurement/purchase-requests", icon: FileText },
@@ -108,6 +114,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Kho vận",
+    icon: Warehouse,
     items: [
       { label: "Tồn kho", href: "/inventory/balances", icon: Boxes },
       { label: "Sổ cái tồn kho", href: "/inventory/movements", icon: ScrollText },
@@ -118,6 +125,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Phân phối & Ký gửi",
+    icon: Store,
     items: [
       { label: "Khách hàng / Đại lý", href: "/distribution/customers", icon: Store },
       { label: "Hợp đồng ký gửi", href: "/distribution/agreements", icon: HandCoins },
@@ -130,6 +138,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Bán hàng",
+    icon: ShoppingBag,
     items: [
       { label: "Bảng giá", href: "/sales/price-lists", icon: Tag },
       { label: "Báo giá", href: "/sales/quotations", icon: FileSignature },
@@ -139,6 +148,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Giao hàng & Vận tải",
+    icon: Truck,
     items: [
       { label: "Yêu cầu giao hàng", href: "/logistics/delivery-requests", icon: PackageOpen },
       { label: "Chuyến giao hàng", href: "/logistics/shipments", icon: Send },
@@ -149,6 +159,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Bảo hành & Dịch vụ",
+    icon: ShieldCheck,
     items: [
       { label: "Chính sách bảo hành", href: "/warranty/policies", icon: ShieldCheck },
       { label: "Đăng ký bảo hành", href: "/warranty/registrations", icon: BadgeCheck },
@@ -161,6 +172,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Tài chính & Kế toán",
+    icon: Landmark,
     items: [
       { label: "Hệ thống tài khoản", href: "/finance/accounts", icon: BookOpen },
       { label: "Trung tâm chi phí", href: "/finance/cost-centers", icon: Factory },
@@ -177,6 +189,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Nhân sự & Lương",
+    icon: Users,
     items: [
       { label: "Hợp đồng lao động", href: "/hrm/contracts", icon: FileText },
       { label: "Ca làm việc", href: "/hrm/shifts", icon: Clock },
@@ -188,6 +201,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Phê duyệt",
+    icon: ClipboardCheck,
     items: [
       { label: "Hộp thư duyệt", href: "/approvals", icon: ClipboardCheck },
       { label: "Approval Matrix", href: "/workflow/approval-matrix", icon: Scale },
@@ -196,6 +210,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Hợp đồng",
+    icon: FileSignature,
     items: [{ label: "Hợp đồng", href: "/contracts", icon: FileSignature }],
   },
 ];

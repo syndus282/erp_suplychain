@@ -77,6 +77,13 @@ const RESOURCES = [
   "fixed-asset",
   "budget",
   "fx-revaluation",
+  // Phase 9 — HRM, Attendance & Payroll
+  "employment-contract",
+  "shift",
+  "attendance",
+  "leave-request",
+  "commission-record",
+  "payroll",
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
@@ -100,6 +107,9 @@ const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
   "journal-entry": ["post", "lock"],
   "fixed-asset": ["depreciate"],
   "fx-revaluation": ["revalue"],
+  attendance: ["check-in", "check-out"],
+  "leave-request": ["approve", "reject"],
+  payroll: ["generate", "confirm", "pay"],
 };
 
 /** Resource chỉ có 1 phần action chuẩn (vd. "user" chỉ có read, chưa có UI tạo/sửa User ở Phase 1-2). */
@@ -122,6 +132,11 @@ const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly stri
   payment: ["read", "create"],
   "journal-entry": ["read", "create"],
   "fx-revaluation": [], // chỉ có action "revalue", không có CRUD chuẩn
+  "employment-contract": ["read", "create"],
+  attendance: ["read"], // chỉ có action check-in/check-out, không có form tạo tay
+  "leave-request": ["read", "create"],
+  "commission-record": ["read", "create"],
+  payroll: ["read"], // chỉ có action generate/confirm/pay, không có form tạo tay
 };
 
 async function main() {
@@ -150,6 +165,7 @@ async function main() {
     { code: "515", name: "Doanh thu hoạt động tài chính (lãi tỷ giá)", type: "REVENUE" },
     { code: "632", name: "Giá vốn hàng bán", type: "EXPENSE" },
     { code: "635", name: "Chi phí tài chính (lỗ tỷ giá)", type: "EXPENSE" },
+    { code: "642", name: "Chi phí quản lý doanh nghiệp (lương)", type: "EXPENSE" },
   ];
   for (const acc of DEFAULT_ACCOUNTS) {
     await prisma.account.upsert({

@@ -51,6 +51,10 @@ import {
   Factory,
   PiggyBank,
   LineChart,
+  Clock,
+  CalendarOff,
+  Percent,
+  Banknote,
 } from "lucide-react";
 
 export interface NavItem {
@@ -165,6 +169,17 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Tài khoản ngân hàng", href: "/finance/bank-accounts", icon: CreditCard },
       { label: "Tài sản cố định", href: "/finance/fixed-assets", icon: PiggyBank },
       { label: "Ngân sách", href: "/finance/budgets", icon: FileSpreadsheet },
+    ],
+  },
+  {
+    label: "Nhân sự & Lương",
+    items: [
+      { label: "Hợp đồng lao động", href: "/hrm/contracts", icon: FileText },
+      { label: "Ca làm việc", href: "/hrm/shifts", icon: Clock },
+      { label: "Chấm công", href: "/hrm/attendance", icon: Clock },
+      { label: "Đơn nghỉ phép", href: "/hrm/leave-requests", icon: CalendarOff },
+      { label: "Hoa hồng bán hàng", href: "/hrm/commissions", icon: Percent },
+      { label: "Bảng lương", href: "/hrm/payroll", icon: Banknote },
     ],
   },
   {

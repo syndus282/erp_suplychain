@@ -17,7 +17,7 @@
 | 6 | Logistics & Delivery | ✅ Hoàn thành | Branch `claude/phase-6-logistics` (kế thừa Phase 5) |
 | 7 | Warranty/RMA/Field Service | ✅ Hoàn thành | Branch `claude/phase-7-warranty` (kế thừa Phase 6) |
 | 8 | Finance & Accounting | ✅ Hoàn thành | Branch `claude/phase-8-finance` (kế thừa Phase 7) |
-| 9 | HRM & Payroll | ⬜ | |
+| 9 | HRM & Payroll | ✅ Hoàn thành | Branch `claude/phase-9-hrm` (kế thừa Phase 8) |
 | 10 | Workflow/Approval hoàn chỉnh | ⬜ | |
 | 11 | BI Dashboard | ⬜ | |
 | 12 | Contract Management + Online Channel | ⬜ | |
@@ -500,6 +500,74 @@ customer-invoice/payment/bank-account/fixed-asset/budget/fx-revaluation).
 
 ---
 
+Phase 9 - HRM, Attendance & Payroll: HOÀN THÀNH trên branch
+`claude/phase-9-hrm` (kế thừa từ Phase 8).
+
+Đã xong:
+- Hợp đồng lao động (EmploymentContract): tạo/xem theo từng nhân viên (không
+  dùng crud-factory vì bảng này không có companyId trực tiếp — công ty xác
+  định gián tiếp qua Employee, giống StorageLocation/PriceListItem). Hàm
+  `getActiveContract()` tìm hợp đồng còn hiệu lực tại 1 thời điểm — dùng để
+  lấy lương cơ bản khi tính lương.
+- Ca làm việc (Shift): crud-factory, giờ bắt đầu/kết thúc dạng "HH:mm".
+- Chấm công (Attendance): `check-in`/`check-out` theo ngày hiện tại (unique
+  employeeId+date) — chặn chấm vào 2 lần/chấm ra khi chưa chấm vào/chấm ra 2
+  lần. Tăng ca tự tính khi có gán ca: `otHours = max(0, giờ làm thực tế - giờ
+  chuẩn theo ca)`.
+- Đơn nghỉ phép (LeaveRequest): tạo → duyệt/từ chối.
+- Hoa hồng bán hàng (CommissionRecord): ghi nhận thủ công, liên kết `soId`
+  (Sales Order) đúng tinh thần ROADMAP "Commission liên kết Sales" — UI hỗ
+  trợ tính nhanh theo %/giá trị đơn hàng nhưng KHÔNG tự động sinh (tránh code
+  cứng biểu phí hoa hồng theo nhóm nhân viên/sản phẩm chưa được xác nhận
+  nghiệp vụ thật).
+- Bảng lương (Payroll) — điểm tích hợp chính của phase:
+  - `generate`: tự lấy `baseSalary` từ hợp đồng còn hiệu lực, tự cộng dồn
+    `CommissionRecord` cùng kỳ, tự tính `otAmount` từ tổng `otHours` trong
+    tháng (giả định ĐƠN GIẢN HÓA có ghi rõ trong code: 1 tháng công chuẩn =
+    208 giờ, hệ số OT = 1.5 — KHÔNG phải công thức BHXH/thuế TNCN thật).
+    Phụ cấp/thưởng/bảo hiểm/thuế nhập tay (mặc định 0) — KHÔNG tự chế công
+    thức thuế/bảo hiểm sai luật. Chặn tính lại nếu bảng lương đã Confirmed/
+    Paid.
+  - `confirm` (Draft→Confirmed) → `pay` (Confirmed→Paid): `pay` tự động ghi
+    bút toán chi phí lương Nợ 642/Có 111 qua `postJournalEntry()` (tái dùng
+    nguyên hạ tầng GL của Phase 8) — thêm tài khoản "642" vào danh sách seed
+    mặc định.
+- Đã kiểm thử THẬT qua curl, xác minh CHÍNH XÁC TỪNG ĐỒNG: hợp đồng lương cơ
+  bản 20,000,000 → chấm công vào/ra trong vài giây (OT đúng = 0 vì chưa đủ
+  giờ chuẩn) → chặn chấm vào 2 lần đúng → đơn nghỉ phép duyệt đúng → tạo SO
+  10,000,000 → ghi hoa hồng 200,000 (2%) → generate payroll kỳ 2026-07 với
+  phụ cấp 500,000 + thưởng 1,000,000 − bảo hiểm 300,000 − thuế 100,000 → kết
+  quả CHÍNH XÁC 21,300,000 (= 20tr + 500k + 1tr + 200k + 0 OT − 300k − 100k)
+  → confirm → pay → JE tự động đúng Nợ 642 21,300,000 / Có 111 21,300,000 —
+  cân đối tuyệt đối → test chặn tính lại bảng lương đã Paid đúng. Playwright
+  xác nhận UI cả 6 trang. `npm run build`/`type-check`/`lint` đều sạch —
+  bundle middleware vẫn ~40KB dù permission tăng lên 209 (không tái phạm bug
+  Phase 7).
+
+Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 9):
+- Công thức BHXH/thuế TNCN thật theo luật VN (bậc thuế lũy tiến, tỷ lệ BHXH/
+  BHYT/BHTN chính xác theo mức lương đóng bảo hiểm) — cố ý KHÔNG code cứng vì
+  dễ sai luật và lỗi thời khi luật đổi; để nhập tay, dễ điều chỉnh theo thực
+  tế hoặc tích hợp module tính thuế chuyên biệt sau.
+- Position Management chi tiết theo từng phòng ban (mục 8 — sơ đồ chức danh
+  Sales Executive/Supervisor/Manager...) — Position đã có từ Phase 1
+  (Organization) nhưng chưa có cây phân cấp chức danh theo mẫu nghiệp vụ chi
+  tiết này.
+- Cảnh báo hợp đồng sắp hết hạn/chưa ký hợp đồng (mục 7), Insurance Management/
+  Tax Management như 1 module riêng (mục 3), HR Reporting tổng hợp — đều cần
+  thêm hạ tầng cảnh báo/báo cáo, để lại cho Phase 11 (BI) nếu cần.
+- Tự động sinh hoa hồng khi Sales Order chuyển DELIVERED (thay vì ghi thủ
+  công) — cân nhắc sau khi biểu phí hoa hồng theo từng nhóm nhân viên được
+  xác nhận rõ ràng với nghiệp vụ thật.
+- Chưa có test tự động — vẫn kiểm thử thủ công qua curl + Playwright.
+
+File liên quan: src/modules/hrm/**, src/app/api/hrm/**, src/app/(app)/hrm/**,
+prisma/seed.ts (seed thêm tài khoản 642 + resource employment-contract/
+shift/attendance/leave-request/commission-record/payroll).
+```
+
+---
+
 ## Quyết định kỹ thuật quan trọng đã chốt (không tự ý đổi)
 
 - Tiền tệ lưu Int, không Decimal/Float (lý do: SQLite → SQL Server migrate an toàn)
@@ -534,7 +602,8 @@ customer-invoice/payment/bank-account/fixed-asset/budget/fx-revaluation).
 - **KHÔNG BAO GIỜ nhúng danh sách permission đầy đủ vào JWT/cookie** (bài học đau từ Phase 7 — xem chi tiết ở "Việc đang dở" Phase 7). Cookie giới hạn ~4096 byte; hệ thống càng nhiều permission theo từng phase càng dễ vượt ngưỡng và trình duyệt sẽ LẶNG LẼ từ chối lưu (không báo lỗi rõ ràng). JWT (`SessionTokenPayload` trong session.ts) chỉ ký sub/companyId/username/employeeId/roles; `getCurrentSession()` nạp lại `permissions` từ DB mỗi request qua `loadUserPermissions()`.
 - `src/middleware.ts` (Edge runtime) chỉ được import hằng số/hàm từ `src/modules/auth/lib/session-constants.ts` — TUYỆT ĐỐI không import từ `session.ts` (file này import `permissions.ts` → kéo theo Prisma Client, không chạy được ở Edge và làm phình bundle middleware). Khi thêm hằng số dùng chung giữa middleware và route handler, luôn cân nhắc đặt ở `session-constants.ts` thay vì `session.ts`.
 - Mọi bút toán tự động (AP/AR) PHẢI đi qua `src/modules/finance/lib/posting.ts#postJournalEntry()` (tra tài khoản theo mã "code", validate Nợ=Có, chặn cứng nếu thiếu tài khoản) — không tự tạo `JournalEntry`/`JournalEntryLine` rải rác ở module khác, tránh bút toán sai/thiếu tài khoản đích. Quy đổi ngoại tệ ra VND PHẢI dùng `src/modules/finance/lib/currency.ts#convertToVnd()` (đúng công thức đã chốt ở docs/currency-handling.md), không tự viết công thức quy đổi riêng ở nơi khác.
-- Chart of Accounts tối thiểu (111/112/131/156/331/511/515/632/635) được seed sẵn trong `prisma/seed.ts` — nếu xóa/đổi mã các tài khoản này ở dữ liệu thật, mọi bút toán tự động AP/AR/FX sẽ lỗi cứng (`ACCOUNT_NOT_FOUND`) vì `postJournalEntry()` tra theo đúng các mã này.
+- Chart of Accounts tối thiểu (111/112/131/156/331/511/515/632/635/642) được seed sẵn trong `prisma/seed.ts` — nếu xóa/đổi mã các tài khoản này ở dữ liệu thật, mọi bút toán tự động AP/AR/FX/Payroll sẽ lỗi cứng (`ACCOUNT_NOT_FOUND`) vì `postJournalEntry()` tra theo đúng các mã này. Thêm module nào tự động sinh bút toán mới thì thêm tài khoản cần thiết vào đúng danh sách này trong seed.ts, không tạo tài khoản rải rác nơi khác.
+- Mọi giả định đơn giản hóa liên quan luật (thuế TNCN, BHXH, hệ số OT, số giờ công chuẩn/tháng...) PHẢI ghi rõ bằng comment ngay tại nơi code (xem `src/modules/hrm/api/payroll.ts`) — không code cứng như thể là công thức tuân thủ pháp luật thật, vì luật thay đổi theo thời gian và sai sót ở đây có rủi ro pháp lý thật cho doanh nghiệp dùng hệ thống.
 - Xem đầy đủ tại CLAUDE.md mục 3-4 và ERD tại docs/data-model.md
 
 ## Vấn đề/rủi ro đã phát hiện (điền khi gặp)

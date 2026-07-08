@@ -194,4 +194,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Audit Trail", href: "/workflow/audit-log", icon: ScrollText },
     ],
   },
+  {
+    label: "Hợp đồng",
+    items: [{ label: "Hợp đồng", href: "/contracts", icon: FileSignature }],
+  },
 ];

@@ -13,7 +13,9 @@ import { SESSION_COOKIE_NAME } from "@/modules/auth/lib/session-constants";
 // vào bundle Edge runtime dù không dùng tới (đã từng làm bundle middleware
 // phình từ ~40kB lên ~113kB).
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+// "/shop" + "/api/shop" là kênh bán online công khai (Phase 12, docs/ROADMAP.md
+// mục 1.4) — khách vãng lai đặt hàng không cần tài khoản nhân viên.
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/shop", "/api/shop"];
 
 async function hasValidSession(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;

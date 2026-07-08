@@ -91,6 +91,8 @@ const RESOURCES = [
   "role", // chỉ read — dùng để chọn approverRoleId khi cấu hình Approval Matrix
   // Phase 11 — Business Intelligence & Dashboard
   "bi-dashboard", // chỉ read — toàn bộ báo cáo tổng hợp/cảnh báo đều tính động, không có form tạo/sửa
+  // Phase 12 — Contract Management & Online Channel
+  "contract",
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;

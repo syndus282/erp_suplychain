@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/Table";
 
 interface AlertItem {
-  type: "INVENTORY_REORDER" | "AR_OVERDUE" | "WARRANTY_DEFECT_RATE";
+  type: "INVENTORY_REORDER" | "AR_OVERDUE" | "WARRANTY_DEFECT_RATE" | "CONTRACT_EXPIRING";
   severity: "warning" | "danger";
   title: string;
   detail: string;
@@ -16,6 +16,7 @@ const TYPE_LABEL: Record<AlertItem["type"], string> = {
   INVENTORY_REORDER: "Tồn kho",
   AR_OVERDUE: "Công nợ phải thu",
   WARRANTY_DEFECT_RATE: "Bảo hành",
+  CONTRACT_EXPIRING: "Hợp đồng",
 };
 
 export function AlertsClient() {

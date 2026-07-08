@@ -20,7 +20,7 @@
 | 9 | HRM & Payroll | ✅ Hoàn thành | Branch `claude/phase-9-hrm` (kế thừa Phase 8) |
 | 10 | Workflow/Approval hoàn chỉnh | ✅ Hoàn thành | Branch `claude/phase-10-workflow` (kế thừa Phase 9) |
 | 11 | BI Dashboard | ✅ Hoàn thành | Branch `claude/phase-11-bi-dashboard` (kế thừa Phase 10) |
-| 12 | Contract Management + Online Channel | ⬜ | |
+| 12 | Contract Management + Online Channel | ✅ Hoàn thành | Branch `claude/phase-12-contract-online` (kế thừa Phase 11) — PHASE CUỐI |
 
 Ký hiệu: ⬜ Chưa bắt đầu · 🔶 Đang làm dở · ✅ Hoàn thành · ⚠️ Có lỗi cần fix
 
@@ -746,6 +746,114 @@ Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 11)
 File liên quan: src/modules/bi/**, src/app/api/bi/**, src/app/(app)/bi/**,
 src/app/(app)/dashboard/page.tsx (thay placeholder Phase 1 bằng
 DashboardClient thật), prisma/seed.ts (resource bi-dashboard).
+```
+
+```
+Phase 12 - Contract Management + Online Channel: HOÀN THÀNH trên branch
+`claude/phase-12-contract-online` (kế thừa từ Phase 11) — PHASE CUỐI theo
+docs/ROADMAP.md ("ưu tiên thấp nhất, Phase cuối").
+
+Đã xong (phạm vi tối giản có chủ đích — 2 hạng mục ưu tiên thấp nhất trong
+toàn bộ ROADMAP, KHÔNG có business-spec riêng, chỉ có 1-2 dòng mô tả ở
+ROADMAP.md mục 1.4 và 1.10):
+
+**Contract Management:**
+- Model `Contract` mới (companyId, code, type SUPPLIER/CUSTOMER/SERVICE/
+  OTHER, title, partnerType/partnerId dạng chuỗi tự do — polymorphic giống
+  pattern AuditLog/Notification, KHÔNG FK cứng vì đối tác có thể là Supplier
+  hoặc Customer, 2 bảng khác nhau — startDate/endDate/value/currency/status
+  DRAFT|ACTIVE|EXPIRED|TERMINATED/fileUrl/note). CỐ Ý KHÔNG gộp
+  `ConsignmentAgreement` (Phase 4) hay `EmploymentContract` (Phase 9) vào
+  đây — 2 bảng đó đã có nghiệp vụ chuyên biệt riêng, gộp chung sẽ mất tính
+  rõ ràng.
+- CRUD đơn giản qua crud-factory (`src/modules/contracts/api/contracts.ts`),
+  KHÔNG có workflow duyệt riêng (khác PurchaseOrder ở Phase 10) — đây là hồ
+  sơ hành chính, thay đổi trạng thái qua action `update` thông thường.
+- Tích hợp ngược vào Alert Engine của Phase 11
+  (`src/modules/bi/api/alerts.ts`): thêm loại cảnh báo thứ 4
+  `CONTRACT_EXPIRING` — hợp đồng đang `ACTIVE` có `endDate` trong vòng 30
+  ngày tới (severity `danger` nếu ≤7 ngày). Đây là ví dụ cụ thể cho việc
+  Phase 11 được thiết kế để mở rộng thêm loại cảnh báo mới dễ dàng.
+
+**Online Channel:**
+- KHÔNG xây "website đầy đủ" (giỏ hàng persist, tài khoản khách hàng, thanh
+  toán online, catalog SEO...) — đây là ứng dụng ERP nội bộ 1 app Next.js
+  dùng session cookie cho MỌI route, xây 1 storefront thật cần hạ tầng khác
+  hẳn (auth khách hàng riêng, payment gateway...). Thay vào đó làm ĐÚNG
+  những gì ROADMAP mục 1.4 cam kết: "khách mua trực tiếp hoặc qua kênh
+  online" tạo `SalesOrder` với `salesChannel=ONLINE` (field này đã có sẵn từ
+  Phase 5, chưa ai dùng qua đường public).
+- Route `/shop` (trang) + `/api/shop/*` (API) được thêm vào `PUBLIC_PATHS`
+  của `src/middleware.ts` — KHÔNG cần session, khác với mọi route còn lại
+  của hệ thống.
+- `getDefaultCompanyId()` (`src/modules/shop/lib/company.ts`): vì endpoint
+  public không có session để tra `companyId`, lấy company đầu tiên/duy nhất
+  hiện có — dựa trên quy ước đã ghi ở ROADMAP mục 2 "companyId trên mọi bảng
+  nhưng multi-company CHƯA kích hoạt". Khi nào bật multi-company thật,
+  endpoint public phải đổi cách xác định company (qua subdomain/param URL).
+- `GET /api/shop/products`: danh mục công khai, chỉ sản phẩm `ACTIVE`, giá
+  lấy từ bảng giá `PriceList.type=SALE` đầu tiên tìm thấy (đơn giản hóa: hệ
+  thống chưa có khái niệm "bảng giá mặc định cho khách lẻ online" riêng —
+  sản phẩm chưa được niêm yết ở bảng SALE hiển thị "Liên hệ báo giá", không
+  cho thêm vào giỏ).
+- `POST /api/shop/orders`: tạo/tìm lại `Customer` theo `phone` (type
+  `RETAIL`, có sẵn trong `CustomerType` từ Phase 0 nhưng chưa ai dùng), tạo
+  `SalesOrder` trạng thái `DRAFT` + `salesChannel=ONLINE` — KHÔNG tự động
+  confirm/xuất kho/kiểm tra hạn mức tín dụng (giống hệt hành vi
+  `createSalesOrder` nội bộ, credit check chỉ xảy ra ở bước `confirm` do
+  nhân viên thực hiện). Đơn online sau đó hiện ra trong đúng màn hình "Đơn
+  hàng bán" nội bộ (Phase 5) — KHÔNG viết lại luồng xử lý riêng cho online,
+  tránh 2 nguồn logic xác nhận đơn khác nhau.
+- `ShopClient.tsx`: giỏ hàng chỉ lưu ở React state (KHÔNG persist qua
+  localStorage/DB) — mất khi tải lại trang, chấp nhận được ở quy mô demo,
+  ghi rõ trong code là giới hạn có chủ đích.
+- Đã kiểm thử THẬT qua curl: tạo 4 hợp đồng (2 sắp hết hạn ACTIVE, 1 còn xa
+  hạn ACTIVE, 1 sắp hết hạn nhưng DRAFT) → alert CONTRACT_EXPIRING đúng CHỈ
+  cho 2 hợp đồng ACTIVE sắp hết hạn, đúng severity theo số ngày còn lại,
+  KHÔNG báo động hợp đồng DRAFT hay hợp đồng còn xa hạn → cập nhật trạng
+  thái TERMINATED → hết cảnh báo. Catalog online đúng giá từ bảng SALE, ẩn
+  giá đúng cho sản phẩm chưa niêm yết. Đặt hàng online (không cookie) tạo
+  đúng SalesOrder DRAFT/ONLINE, đúng tổng tiền, nhân viên thấy được ngay ở
+  `/sales/orders` nội bộ. Đặt đơn thứ 2 CÙNG SỐ ĐIỆN THOẠI xác nhận dùng lại
+  đúng 1 Customer (không tạo trùng — xác minh bằng cách so `customerId` giữa
+  2 đơn). Checkout sản phẩm chưa niêm yết giá bị chặn đúng
+  (`VALIDATION_ERROR`). `/shop` và `/api/shop/*` truy cập được không cần
+  cookie; các route nội bộ khác (`/api/contracts`) vẫn đúng 401 khi không có
+  cookie — xác nhận không có lỗ hổng phân quyền do thêm public path.
+  Playwright xác nhận UI: trang Hợp đồng (CRUD + badge trạng thái), trang
+  Cảnh báo hiển thị đúng nhóm "Hợp đồng", trang `/shop` hiển thị catalog +
+  giỏ hàng + form đặt hàng đúng theo style Liquid Glass nhất quán toàn hệ
+  thống dù nằm ngoài layout `(app)` có Sidebar/Topbar.
+  `npm run build`/`type-check`/`lint` đều sạch — middleware vẫn 39.5KB
+  (thêm 2 public path không phình bundle vì chỉ là so sánh chuỗi).
+
+Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 12 — đây LÀ phạm
+vi đã chốt ở ROADMAP mục 1.4 và 1.10, không phải cắt giảm tùy tiện):
+- Website bán hàng online ĐẦY ĐỦ (giỏ hàng persist, tài khoản/đăng nhập
+  khách hàng, thanh toán online, theo dõi đơn hàng, SEO, catalog phân
+  trang/lọc/tìm kiếm nâng cao) — ROADMAP ghi rõ đây là mức tối thiểu cho
+  giai đoạn đầu, "Website đầy đủ" cần 1 dự án riêng ngoài phạm vi ERP nội
+  bộ.
+- Giỏ hàng không persist (mất khi tải lại trang/đổi thiết bị) — cần thêm
+  session/cookie riêng cho khách (khác cơ chế session nhân viên hiện tại)
+  nếu muốn giữ giỏ hàng qua nhiều lần truy cập.
+- Contract Management chưa có: workflow duyệt hợp đồng trước khi ACTIVE,
+  quản lý phiên bản/phụ lục hợp đồng, gia hạn tự động, liên kết 2 chiều với
+  Supplier/Customer thật (hiện `partnerId` chỉ lưu tự do, chưa có UI chọn
+  đối tác cụ thể từ danh sách Supplier/Customer).
+- Đa công ty (multi-company) thật cho kênh online — hiện `getDefaultCompanyId()`
+  giả định chỉ có 1 company, đúng theo hiện trạng toàn hệ thống chưa kích
+  hoạt multi-company.
+- Chưa có test tự động — vẫn kiểm thử thủ công qua curl + Playwright.
+
+File liên quan: src/modules/contracts/**, src/modules/shop/**,
+src/app/api/contracts/**, src/app/api/shop/**, src/app/(app)/contracts/**,
+src/app/shop/**, src/middleware.ts (thêm "/shop", "/api/shop" vào
+PUBLIC_PATHS), src/modules/bi/api/alerts.ts (thêm CONTRACT_EXPIRING),
+prisma/schema.prisma (model Contract mới), prisma/seed.ts (resource
+contract).
+
+=== TOÀN BỘ 12 PHASE THEO ROADMAP.MD ĐÃ HOÀN THÀNH ===
 ```
 
 ---

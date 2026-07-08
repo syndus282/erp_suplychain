@@ -2123,3 +2123,49 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id])
 }
+
+// =========================================================================
+// PHASE 12 — CONTRACT MANAGEMENT (ưu tiên thấp nhất, xem docs/ROADMAP.md mục 1.10)
+// =========================================================================
+
+enum ContractType {
+  SUPPLIER
+  CUSTOMER
+  SERVICE
+  OTHER
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+/**
+ * Hợp đồng tổng quát dùng cho các loại đối tác/mục đích chưa có bảng hợp
+ * đồng chuyên biệt riêng (ConsignmentAgreement ở Phase 4 và EmploymentContract
+ * ở Phase 9 vẫn giữ nguyên, KHÔNG gộp vào đây). `partnerType`/`partnerId`
+ * dùng chuỗi tự do (không FK cứng) theo đúng pattern đã dùng ở AuditLog/
+ * Notification — đối tác có thể là Supplier hoặc Customer, 2 bảng khác nhau.
+ */
+model Contract {
+  id          String         @id @default(cuid())
+  companyId   String
+  code        String
+  type        ContractType
+  title       String
+  partnerType String?
+  partnerId   String?
+  startDate   DateTime
+  endDate     DateTime?
+  value       Int?
+  currency    String         @default("VND")
+  status      ContractStatus @default(DRAFT)
+  fileUrl     String?
+  note        String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([companyId, code])
+}

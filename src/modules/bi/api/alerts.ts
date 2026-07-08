@@ -4,7 +4,7 @@ import { requirePermission } from "@/modules/auth/lib/permissions";
 import { apiSuccess } from "@/lib/api/response";
 
 export interface BiAlert {
-  type: "INVENTORY_REORDER" | "AR_OVERDUE" | "WARRANTY_DEFECT_RATE";
+  type: "INVENTORY_REORDER" | "AR_OVERDUE" | "WARRANTY_DEFECT_RATE" | "CONTRACT_EXPIRING";
   severity: "warning" | "danger";
   title: string;
   detail: string;
@@ -13,14 +13,16 @@ export interface BiAlert {
 const AR_OVERDUE_ALERT_THRESHOLD_DAYS = 30;
 const WARRANTY_DEFECT_RATE_ALERT_THRESHOLD = 0.1; // 10%
 const WARRANTY_MIN_SAMPLE_SIZE = 5; // tránh báo động giả với mẫu quá nhỏ
+const CONTRACT_EXPIRING_WITHIN_DAYS = 30;
 
 /**
  * Cảnh báo chủ động (docs/business-spec/11 mục 26) — tính động trên dữ liệu
  * hiện có, KHÔNG lưu bảng Alert riêng (không có model này trong schema, và
  * dữ liệu nguồn thay đổi liên tục nên tính lại mỗi lần gọi là đủ ở quy mô
- * hiện tại). 3 loại đã làm: tồn kho dưới điểm đặt hàng lại (Product.reorderPoint
+ * hiện tại). 4 loại đã làm: tồn kho dưới điểm đặt hàng lại (Product.reorderPoint
  * có sẵn từ Phase 1 nhưng chưa ai dùng), công nợ phải thu quá hạn >30 ngày,
- * tỷ lệ khiếu nại bảo hành bất thường theo sản phẩm.
+ * tỷ lệ khiếu nại bảo hành bất thường theo sản phẩm, hợp đồng (Phase 12) sắp
+ * hết hạn trong 30 ngày.
  */
 export async function computeActiveAlerts(companyId: string): Promise<BiAlert[]> {
   const alerts: BiAlert[] = [];
@@ -111,6 +113,24 @@ export async function computeActiveAlerts(companyId: string): Promise<BiAlert[]>
         });
       }
     }
+  }
+
+  const expiringContracts = await prisma.contract.findMany({
+    where: {
+      companyId,
+      status: "ACTIVE",
+      endDate: { not: null, lte: new Date(Date.now() + CONTRACT_EXPIRING_WITHIN_DAYS * 24 * 60 * 60 * 1000) },
+    },
+    select: { code: true, title: true, endDate: true },
+  });
+  for (const c of expiringContracts) {
+    const daysLeft = Math.ceil((c.endDate!.getTime() - now) / (24 * 60 * 60 * 1000));
+    alerts.push({
+      type: "CONTRACT_EXPIRING",
+      severity: daysLeft <= 7 ? "danger" : "warning",
+      title: `Hợp đồng ${c.code} - ${c.title} sắp hết hạn`,
+      detail: daysLeft >= 0 ? `Còn ${daysLeft} ngày đến hạn kết thúc` : `Đã quá hạn kết thúc ${-daysLeft} ngày`,
+    });
   }
 
   return alerts;

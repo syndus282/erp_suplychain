@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { NotificationBell } from "@/modules/workflow/components/NotificationBell";
 
 export function Topbar({ username }: { username: string }) {
   const router = useRouter();
@@ -14,16 +15,10 @@ export function Topbar({ username }: { username: string }) {
   }
 
   return (
-    <header className="glass-surface flex h-14 shrink-0 items-center justify-between rounded-2xl px-4">
+    <header className="glass-surface relative z-20 flex h-14 shrink-0 items-center justify-between rounded-2xl px-4">
       <div />
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          aria-label="Thông báo"
-          className="rounded-lg p-2 text-text-secondary hover:bg-surface-glass hover:text-text-primary"
-        >
-          <Bell size={18} />
-        </button>
+        <NotificationBell />
         <span className="text-sm text-text-secondary">{username}</span>
         <Button variant="ghost" onClick={handleLogout} className="gap-1.5">
           <LogOut size={16} />

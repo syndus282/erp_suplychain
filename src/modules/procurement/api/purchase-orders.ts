@@ -7,6 +7,9 @@ import { businessRuleError, notFoundError } from "@/lib/api/errors";
 import { parsePagination, parseSort, buildPageMeta } from "@/lib/api/pagination";
 import { optionalDateInput } from "@/lib/api/validation";
 import { generateCode } from "../lib/codegen";
+import { convertToVnd } from "@/modules/finance/lib/currency";
+import { resolveApprover } from "@/modules/workflow/lib/approval-matrix";
+import { createApprovalRequest } from "@/modules/workflow/lib/approval";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
@@ -110,23 +113,48 @@ export async function createPurchaseOrder(request: Request) {
   return apiSuccess(created, undefined, 201);
 }
 
-export async function approvePurchaseOrder(id: string) {
+/**
+ * Trình duyệt PO qua workflow đầy đủ (Phase 10 - docs/business-spec/12 mục 6):
+ * tra ApprovalMatrix theo giá trị PO (quy đổi VND) để tìm role duyệt, rồi tạo
+ * ApprovalRequest — quyết định duyệt/từ chối thực hiện qua hộp thư duyệt
+ * chung (`/approvals`, xem approval.ts#decideApprovalStep), KHÔNG còn action
+ * approve permission-gated đơn giản như Phase 2.
+ */
+export async function submitPurchaseOrderForApproval(id: string) {
   const session = await getCurrentSession();
-  requirePermission(session, "purchase-order", "approve");
+  requirePermission(session, "purchase-order", "submit");
 
-  const po = await prisma.purchaseOrder.findUnique({ where: { id } });
+  const po = await prisma.purchaseOrder.findUnique({ where: { id }, include: { lines: true } });
   if (!po || po.companyId !== session.companyId) throw notFoundError();
   if (po.status !== "DRAFT") {
-    throw businessRuleError("Chỉ có thể duyệt đơn mua hàng đang ở trạng thái Nháp", {
+    throw businessRuleError("Chỉ có thể trình duyệt đơn mua hàng đang ở trạng thái Nháp", {
       rule: "PO_NOT_DRAFT",
       currentStatus: po.status,
     });
   }
 
-  const updated = await prisma.purchaseOrder.update({
-    where: { id },
-    data: { status: "APPROVED" },
-    include,
+  const totalAmount = po.lines.reduce((sum, line) => sum + line.totalAmount, 0);
+  const amountVnd = convertToVnd(totalAmount, po.currency, po.exchangeRate);
+  const { approverRoleId } = await resolveApprover(session.companyId, "PurchaseOrder", amountVnd);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.purchaseOrder.update({
+      where: { id },
+      data: { status: "PENDING_APPROVAL" },
+      include,
+    });
+    await createApprovalRequest(
+      {
+        companyId: session.companyId,
+        entityType: "PurchaseOrder",
+        entityId: id,
+        requestedById: session.sub,
+        approverRoleId,
+        notificationTitle: `Yêu cầu duyệt đơn mua hàng ${po.code} (${amountVnd.toLocaleString("vi-VN")} VND)`,
+      },
+      tx
+    );
+    return result;
   });
 
   return apiSuccess(updated);

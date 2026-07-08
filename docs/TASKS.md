@@ -18,7 +18,7 @@
 | 7 | Warranty/RMA/Field Service | ✅ Hoàn thành | Branch `claude/phase-7-warranty` (kế thừa Phase 6) |
 | 8 | Finance & Accounting | ✅ Hoàn thành | Branch `claude/phase-8-finance` (kế thừa Phase 7) |
 | 9 | HRM & Payroll | ✅ Hoàn thành | Branch `claude/phase-9-hrm` (kế thừa Phase 8) |
-| 10 | Workflow/Approval hoàn chỉnh | ⬜ | |
+| 10 | Workflow/Approval hoàn chỉnh | ✅ Hoàn thành | Branch `claude/phase-10-workflow` (kế thừa Phase 9) |
 | 11 | BI Dashboard | ⬜ | |
 | 12 | Contract Management + Online Channel | ⬜ | |
 
@@ -566,6 +566,110 @@ prisma/seed.ts (seed thêm tài khoản 642 + resource employment-contract/
 shift/attendance/leave-request/commission-record/payroll).
 ```
 
+```
+Phase 10 - Workflow/Approval hoàn chỉnh: HOÀN THÀNH trên branch
+`claude/phase-10-workflow` (kế thừa từ Phase 9).
+
+Đã xong:
+- ApprovalMatrix CRUD (`src/modules/workflow/api/approval-matrix.ts`,
+  crud-factory) + `resolveApprover(companyId, transactionType, amountVnd)`
+  (`src/modules/workflow/lib/approval-matrix.ts`) — tra hàng có `minAmount`
+  lớn nhất thỏa `minAmount <= amountVnd <= (maxAmount hoặc +∞)`, chặn cứng
+  (`NO_APPROVAL_MATRIX_RULE`) nếu chưa cấu hình rule cho loại giao dịch đó
+  thay vì âm thầm bỏ qua duyệt. Trang admin `/workflow/approval-matrix`
+  (CrudPage có sẵn) để cấu hình role duyệt theo mốc giá trị.
+- `ApprovalStep` giờ hỗ trợ phân công theo ROLE (`approverRoleId`), không chỉ
+  theo user cụ thể như Phase 1-9: `createApprovalRequest()` nhận
+  `approverUserId` HOẶC `approverRoleId` (bắt buộc có ít nhất 1); khi duyệt,
+  `decideApprovalStep()` xác thực qua `userRole` nếu step gán theo role.
+  `listApprovalRequests`'s `assignedToMe` filter được sửa để match cả 2
+  trường hợp (trước đây chỉ match `approverUserId`, sẽ ẩn mất việc gán theo
+  role nếu không sửa).
+- Segregation of Duties (docs/business-spec/12 mục 31-32): `decideApprovalStep`
+  chặn cứng nếu `actorUserId === requestedById` — người tạo yêu cầu KHÔNG
+  được tự duyệt yêu cầu của chính mình, dù có đúng role/đúng user được gán.
+  Thêm role + user "manager" (`Manager@123456`) vào seed vì hệ thống trước đó
+  chỉ có 1 user "admin" — không đủ để kiểm thử SOD thật (2 vai trò khác nhau
+  duyệt lẫn nhau, không tự duyệt được cho chính mình).
+- Audit Trail: `writeAuditLog()` (`src/modules/workflow/lib/audit.ts`) ghi
+  APPROVE/REJECT (kèm changedById, oldValue/newValue JSON) mỗi khi
+  `decideApprovalStep` chạy — bảng `AuditLog` có từ Phase 0 nhưng chưa ai ghi
+  vào cho tới phase này. Trang read-only `/workflow/audit-log`.
+- Notification Engine: `notifyUser()`/`notifyRole()`
+  (`src/modules/workflow/lib/notify.ts`) tạo `Notification` khi có
+  ApprovalRequest mới (báo người/role duyệt) và khi có quyết định (báo lại
+  người tạo yêu cầu). Bell icon ở Topbar trước đây là nút tĩnh không có chức
+  năng — giờ có dropdown thật (`NotificationBell.tsx`, poll 30s), list/mark-
+  read/mark-all-read (`/api/workflow/notifications*`).
+- Escalation: `runEscalation()` — action ON-DEMAND (không phải cron thật, app
+  Next.js không có hạ tầng background job), quét `ApprovalStep` PENDING quá
+  24h rồi nhắc lại (Notification loại ESCALATION) — phải gọi thủ công hoặc từ
+  scheduler ngoài (vd. cron OS) gọi `POST /api/workflow/escalations/run`.
+- Tích hợp PurchaseOrder vào workflow đầy đủ (thay thế action `approve` đơn
+  giản của Phase 2): `submitPurchaseOrderForApproval()` tính tổng tiền PO quy
+  đổi VND (tái dùng `convertToVnd()` của Phase 8 - Finance, cross-module) →
+  `resolveApprover()` → tạo `ApprovalRequest` theo role → PO chuyển
+  `PENDING_APPROVAL`. Quyết định duyệt/từ chối giờ đi qua hộp thư duyệt chung
+  `/approvals` (không còn nút "Duyệt" trực tiếp trên trang PO — nút đổi thành
+  "Trình duyệt"). `entity-sync.ts` thêm case `"PurchaseOrder"`
+  (APPROVED→APPROVED, REJECTED→CANCELLED). Permission `purchase-order:approve`
+  đổi thành `purchase-order:submit`.
+- Role list read-only (`GET /api/org/roles`, resource mới `role:read`) — chỉ
+  để chọn `approverRoleId` khi cấu hình Approval Matrix, CHƯA có màn hình
+  tạo/sửa Role (ngoài phạm vi Phase 10).
+- Seed: 2 mốc Approval Matrix mẫu cho `PurchaseOrder` (0-50 triệu → MANAGER,
+  từ 50 triệu → ADMIN) minh họa cơ chế phân cấp theo giá trị.
+- Sửa 1 bug UI phát hiện khi test Playwright: `NotificationBell` dropdown lúc
+  đầu dùng `.glass-surface-strong` (nền mờ blur) đặt trực tiếp lên nền
+  gradient của trang (không có scrim phía sau như panel tạo/sửa toàn màn
+  hình) → chữ gần như vô hình vì độ tương phản quá thấp. Đổi sang
+  `bg-surface-solid` (nền đặc, giống `Card`) là đủ, đồng thời phát hiện thêm
+  Topbar bị `<main>` (sibling render sau, cũng dùng `glass-surface` nên tạo
+  stacking context riêng) đè lên phần dropdown tràn ra ngoài — phải thêm
+  `relative z-20` vào `<header>` của Topbar để cả stacking context của nó
+  luôn nổi trên `<main>`.
+- Đã kiểm thử THẬT qua curl: tạo PR (approver = manager) → manager duyệt →
+  tạo PO 10,000,000 VND từ PR đã duyệt → trình duyệt (tự tra ra role MANAGER
+  theo mốc 0-50 triệu) → xác nhận admin (người tạo) bị chặn SOD khi tự duyệt
+  (`FORBIDDEN` đúng message) → manager duyệt thành công → PO chuyển
+  `APPROVED` → AuditLog có đúng dòng APPROVE by manager → admin nhận
+  Notification "đã được DUYỆT" → mark-read/mark-all-read đúng → escalation
+  chạy không lỗi (0 việc quá hạn) → CRUD Approval Matrix (tạo/sửa) đúng →
+  double-submit PO bị chặn đúng (`PO_NOT_DRAFT`). Playwright xác nhận UI:
+  trang Approval Matrix, Audit Trail, PO list (status APPROVED), và
+  Notification dropdown (sau khi sửa bug tương phản) đều hiển thị đúng.
+  `npm run build`/`type-check`/`lint` đều sạch — middleware bundle vẫn đúng
+  39.5KB (không tái phạm bug Prisma-trong-Edge-middleware của Phase 7) dù
+  permission tăng lên 215.
+
+Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 10):
+- Escalation ladder đầy đủ 24h/48h/72h với hành động khác nhau theo từng mốc
+  (business-spec mục 28) — chỉ làm 1 mốc 24h đơn giản (nhắc lại), chưa phân
+  biệt hành động leo thang (đổi người duyệt, báo cấp trên) theo từng mốc.
+- Escalation KHÔNG tự chạy theo lịch — app Next.js này không có hạ tầng
+  cron/background job riêng, phải gọi thủ công hoặc từ scheduler ngoài.
+- Task Management (mục 29 - to-do list riêng cho từng người dùng theo mọi tác
+  vụ, không chỉ ApprovalStep) — không có model trong schema, không thuộc
+  ROADMAP, để ngoài phạm vi.
+- Chỉ tích hợp workflow đầy đủ (ApprovalMatrix + role-based) cho
+  `PurchaseOrder`; `PurchaseRequest`/`SalesOrder` (Phase 1/5) vẫn dùng
+  `approverUserId` chỉ định tay như cũ (không bắt buộc phải đổi — cơ chế mới
+  tương thích ngược, `createApprovalRequest` nhận cả 2 kiểu).
+- Role management (tạo/sửa Role, gán Permission theo UI) — chỉ có read-only
+  list để chọn trong Approval Matrix; tạo/sửa Role vẫn phải qua seed hoặc
+  thao tác DB trực tiếp.
+- Chưa có test tự động — vẫn kiểm thử thủ công qua curl + Playwright.
+
+File liên quan: src/modules/workflow/**, src/modules/org/api/roles.ts,
+src/app/api/workflow/**, src/app/api/org/roles/**,
+src/app/(app)/workflow/**, src/app/(app)/approvals/**,
+src/modules/procurement/api/purchase-orders.ts (submitPurchaseOrderForApproval),
+src/components/layout/{Topbar,NotificationBell}.tsx (qua
+src/modules/workflow/components/NotificationBell.tsx), prisma/seed.ts (role
+MANAGER + user manager + resource approval-matrix/audit-log/notification/role
++ 2 mốc Approval Matrix mẫu).
+```
+
 ---
 
 ## Quyết định kỹ thuật quan trọng đã chốt (không tự ý đổi)
@@ -590,7 +694,7 @@ shift/attendance/leave-request/commission-record/payroll).
 - CRUD đơn giản (không quan hệ nhiều-nhiều) dùng chung `src/lib/api/crud-factory.ts`; resource có quan hệ phức tạp (Product, StorageLocation) viết handler riêng — không ép vào factory.
 - Field ngày optional nhận từ form PHẢI dùng `src/lib/api/validation.ts#optionalDateInput()`, KHÔNG dùng `z.string().optional()` trực tiếp — Prisma không tự parse chuỗi ngày rút gọn "YYYY-MM-DD" (chỉ nhận Date object hoặc ISO-8601 đầy đủ).
 - Đồng bộ trạng thái entity sau khi workflow duyệt/từ chối dùng switch cứng tại `src/modules/workflow/lib/entity-sync.ts` (gọi thẳng Prisma model, không import chéo module). Khi có nhiều entity tích hợp hơn (>3-4), refactor sang handler-registry thay vì thêm case mãi vào switch này.
-- PO approve là action permission-gated đơn giản (`purchase-order:approve`), KHÔNG dùng lại ApprovalRequest đa bước — ApprovalMatrix đầy đủ để dành Phase 10.
+- (Đã thay thế ở Phase 10) PO trước đây approve bằng action permission-gated đơn giản (`purchase-order:approve`) không qua ApprovalRequest. Từ Phase 10: `submitPurchaseOrderForApproval()` tra `ApprovalMatrix` theo giá trị PO (quy đổi VND) → tạo `ApprovalRequest` role-based → duyệt/từ chối qua hộp thư `/approvals` chung. Permission đổi thành `purchase-order:submit`.
 - Mọi thay đổi tồn kho PHẢI qua `src/modules/inventory/lib/stock-ledger.ts#recordStockMovement()` — không tự ý update `InventoryBalance` trực tiếp ở module khác (tránh 2 nguồn sự thật, xem docs/data-model.md mục 16.2).
 - Customer Master (bao gồm Dealer) thuộc module `distribution` (không phải `sales`) vì Phase 4 (Distribution) cần nó trước Phase 5 (Sales) theo đúng thứ tự ROADMAP — Phase 5 import và tái sử dụng, KHÔNG tạo lại Customer CRUD.
 - Tồn kho ký gửi (`ConsignmentBalance`) tách hoàn toàn khỏi `InventoryBalance` — không dùng chung bảng, không coi đại lý là 1 Warehouse ảo. Khi ký gửi/thu hồi, `recordStockMovement` chỉ chạm vào phía kho công ty (CONSIGNMENT_OUT/CONSIGNMENT_RETURN); phía đại lý cập nhật thủ công qua `ConsignmentBalance` trong cùng transaction.

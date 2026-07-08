@@ -54,8 +54,8 @@ export function ApprovalInbox() {
     <div>
       <h1 className="mb-2 text-xl font-semibold text-text-primary">Hộp thư duyệt</h1>
       <p className="mb-6 text-sm text-text-secondary">
-        Khung phê duyệt tối giản Phase 1 (request → 1 người duyệt). Các module Phase 2 trở đi
-        (Purchase Order, Stock Adjustment...) sẽ tạo yêu cầu vào đây.
+        Các yêu cầu duyệt đang chờ bạn xử lý — theo đích danh hoặc theo vai trò (Approval Matrix,
+        xem trang &quot;Approval Matrix&quot; để cấu hình theo giá trị giao dịch).
       </p>
 
       <Card className="p-0">

@@ -84,13 +84,18 @@ const RESOURCES = [
   "leave-request",
   "commission-record",
   "payroll",
+  // Phase 10 — Workflow/Approval hoàn chỉnh
+  "approval-matrix",
+  "audit-log",
+  "notification",
+  "role", // chỉ read — dùng để chọn approverRoleId khi cấu hình Approval Matrix
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
 
 /** Action đặc thù ngoài read/create/update, chỉ áp dụng cho 1 số resource. */
 const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
-  "purchase-order": ["approve"],
+  "purchase-order": ["submit"],
   "stock-transfer": ["ship", "receive"],
   "stock-count": ["submit", "approve"],
   "consignment-shipment": ["deliver"],
@@ -137,6 +142,9 @@ const ACTIONS_OVERRIDE: Partial<Record<(typeof RESOURCES)[number], readonly stri
   "leave-request": ["read", "create"],
   "commission-record": ["read", "create"],
   payroll: ["read"], // chỉ có action generate/confirm/pay, không có form tạo tay
+  "audit-log": ["read"], // chỉ đọc, ghi tự động từ decideApprovalStep
+  notification: ["read"], // mark-as-read dùng chung quyền read (thao tác trên inbox của chính mình)
+  role: ["read"],
 };
 
 async function main() {
@@ -242,6 +250,91 @@ async function main() {
   console.log(
     `Seeded admin user: username="admin" password="Admin@123456" — ĐỔI MẬT KHẨU NÀY trước khi dùng thật.`
   );
+
+  // Role MANAGER + user "manager" (Phase 10): Segregation of Duties
+  // (docs/business-spec/12 mục 31-32) bắt buộc người tạo yêu cầu KHÔNG được
+  // tự duyệt yêu cầu của chính mình — cần ít nhất 1 user thứ hai để
+  // ApprovalMatrix có người duyệt độc lập với người tạo (vd. PO do admin tạo,
+  // manager duyệt).
+  const managerRole = await prisma.role.upsert({
+    where: { companyId_code: { companyId: company.id, code: "MANAGER" } },
+    update: {},
+    create: { companyId: company.id, code: "MANAGER", name: "Quản lý duyệt" },
+  });
+
+  const managerPermissionCodes = ["approval-request:read", "approval-request:update", "notification:read"];
+  const managerPermissions = await prisma.permission.findMany({ where: { code: { in: managerPermissionCodes } } });
+  for (const permission of managerPermissions) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: managerRole.id, permissionId: permission.id } },
+      update: {},
+      create: { roleId: managerRole.id, permissionId: permission.id },
+    });
+  }
+
+  const managerEmployee = await prisma.employee.upsert({
+    where: { companyId_code: { companyId: company.id, code: "EMP-MANAGER" } },
+    update: {},
+    create: {
+      companyId: company.id,
+      code: "EMP-MANAGER",
+      fullName: "Quản lý phê duyệt",
+      employeeType: "FULL_TIME",
+      status: "ACTIVE",
+    },
+  });
+
+  const managerPasswordHash = await bcrypt.hash("Manager@123456", 10);
+  const managerUser = await prisma.user.upsert({
+    where: { username: "manager" },
+    update: { employeeId: managerEmployee.id },
+    create: {
+      companyId: company.id,
+      username: "manager",
+      email: "manager@example.com",
+      passwordHash: managerPasswordHash,
+      status: "ACTIVE",
+      employeeId: managerEmployee.id,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: managerUser.id, roleId: managerRole.id } },
+    update: {},
+    create: { userId: managerUser.id, roleId: managerRole.id },
+  });
+
+  console.log(
+    `Seeded manager user: username="manager" password="Manager@123456" — ĐỔI MẬT KHẨU NÀY trước khi dùng thật.`
+  );
+
+  // Approval Matrix mẫu cho PurchaseOrder (docs/business-spec/12 mục 6): 2 mốc
+  // giá trị minh họa cơ chế phân cấp theo số tiền — công ty tự cấu hình lại
+  // qua màn hình "Approval Matrix" (CRUD, xem approval-matrix.ts).
+  await prisma.approvalMatrix.upsert({
+    where: { id: `${company.id}-po-tier1` },
+    update: {},
+    create: {
+      id: `${company.id}-po-tier1`,
+      companyId: company.id,
+      transactionType: "PurchaseOrder",
+      minAmount: 0,
+      maxAmount: 50_000_000,
+      approverRoleId: managerRole.id,
+    },
+  });
+  await prisma.approvalMatrix.upsert({
+    where: { id: `${company.id}-po-tier2` },
+    update: {},
+    create: {
+      id: `${company.id}-po-tier2`,
+      companyId: company.id,
+      transactionType: "PurchaseOrder",
+      minAmount: 50_000_000,
+      approverRoleId: adminRole.id,
+    },
+  });
+  console.log("Seeded Approval Matrix mẫu cho PurchaseOrder (2 mốc giá trị).");
 }
 
 main()

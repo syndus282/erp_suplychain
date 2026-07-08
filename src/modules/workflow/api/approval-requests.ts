@@ -12,11 +12,31 @@ export async function listApprovalRequests(request: Request) {
   const url = new URL(request.url);
   const assignedToMe = url.searchParams.get("assignedToMe") !== "false"; // mặc định chỉ xem việc của mình
 
+  // Từ Phase 10, step có thể phân công theo role (approverRoleId) thay vì
+  // đích danh 1 user — phải tra thêm roleId của user hiện tại (session chỉ
+  // có role CODE, không có role ID) để lọc "việc của mình" cho đúng, nếu
+  // không sẽ ẩn mất các yêu cầu duyệt theo role.
+  const myRoleIds = assignedToMe
+    ? (
+        await prisma.role.findMany({
+          where: { companyId: session.companyId, code: { in: session.roles } },
+          select: { id: true },
+        })
+      ).map((r) => r.id)
+    : [];
+
   const items = await prisma.approvalRequest.findMany({
     where: {
       companyId: session.companyId,
       ...(assignedToMe
-        ? { steps: { some: { approverUserId: session.sub, status: "PENDING" } } }
+        ? {
+            steps: {
+              some: {
+                status: "PENDING",
+                OR: [{ approverUserId: session.sub }, { approverRoleId: { in: myRoleIds } }],
+              },
+            },
+          }
         : {}),
     },
     include: { steps: true },

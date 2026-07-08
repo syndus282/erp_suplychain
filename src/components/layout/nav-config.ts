@@ -184,6 +184,10 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Phê duyệt",
-    items: [{ label: "Hộp thư duyệt", href: "/approvals", icon: ClipboardCheck }],
+    items: [
+      { label: "Hộp thư duyệt", href: "/approvals", icon: ClipboardCheck },
+      { label: "Approval Matrix", href: "/workflow/approval-matrix", icon: Scale },
+      { label: "Audit Trail", href: "/workflow/audit-log", icon: ScrollText },
+    ],
   },
 ];

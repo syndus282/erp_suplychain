@@ -127,11 +127,11 @@ export function PurchaseOrdersClient() {
     load();
   }
 
-  async function handleApprove(id: string) {
+  async function handleSubmitForApproval(id: string) {
     setActingId(id);
-    const res = await fetch(`/api/procurement/purchase-orders/${id}/approve`, { method: "POST" });
+    const res = await fetch(`/api/procurement/purchase-orders/${id}/submit`, { method: "POST" });
     const body = await res.json();
-    if (!body.success) alert(body.error?.message ?? "Không thể duyệt đơn hàng");
+    if (!body.success) alert(body.error?.message ?? "Không thể trình duyệt đơn hàng");
     setActingId(null);
     load();
   }
@@ -187,10 +187,10 @@ export function PurchaseOrdersClient() {
                         <Button
                           variant="primary"
                           disabled={actingId === row.id}
-                          onClick={() => handleApprove(row.id)}
+                          onClick={() => handleSubmitForApproval(row.id)}
                           className="gap-1 px-2 py-1 text-xs"
                         >
-                          <Check size={14} /> Duyệt
+                          <Check size={14} /> Trình duyệt
                         </Button>
                       )}
                     </Td>

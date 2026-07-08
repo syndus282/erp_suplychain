@@ -17,6 +17,14 @@ export async function syncEntityAfterDecision(
     case "PurchaseRequest":
       await prisma.purchaseRequest.update({ where: { id: entityId }, data: { status: decision } });
       break;
+    case "PurchaseOrder":
+      // PurchaseOrderStatus có literal APPROVED trùng tên nhưng không có
+      // REJECTED, nên khi từ chối phải map sang Cancelled.
+      await prisma.purchaseOrder.update({
+        where: { id: entityId },
+        data: { status: decision === "APPROVED" ? "APPROVED" : "CANCELLED" },
+      });
+      break;
     case "SalesOrder":
       // SalesOrderStatus không có literal APPROVED/REJECTED (khác PurchaseRequestStatus)
       // nên phải map: duyệt -> Confirmed (đơn hàng chính thức có hiệu lực),

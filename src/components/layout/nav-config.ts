@@ -27,6 +27,10 @@ import {
   ReceiptText,
   Scale,
   Undo2,
+  Tag,
+  FileSignature,
+  ShoppingBag,
+  RotateCcw,
 } from "lucide-react";
 
 export interface NavItem {
@@ -94,6 +98,15 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Báo bán hàng", href: "/distribution/sales-reports", icon: ReceiptText },
       { label: "Đối soát ký gửi", href: "/distribution/reconciliations", icon: Scale },
       { label: "Thu hồi hàng", href: "/distribution/recalls", icon: Undo2 },
+    ],
+  },
+  {
+    label: "Bán hàng",
+    items: [
+      { label: "Bảng giá", href: "/sales/price-lists", icon: Tag },
+      { label: "Báo giá", href: "/sales/quotations", icon: FileSignature },
+      { label: "Đơn hàng bán", href: "/sales/orders", icon: ShoppingBag },
+      { label: "Trả hàng", href: "/sales/returns", icon: RotateCcw },
     ],
   },
   {

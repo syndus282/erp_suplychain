@@ -30,6 +30,9 @@ const customerSchema = z.object({
   email: z.string().optional(),
   segment: z.nativeEnum(CustomerSegment).optional(),
   salesRepId: z.string().nullable().optional(),
+  // priceListId: gán bảng giá (docs/business-spec/05 mục 5.3) — dùng ở Phase 5
+  // để kiểm tra chính sách giá khi xác nhận Sales Order.
+  priceListId: z.string().nullable().optional(),
   creditLimit: z.number().int().nonnegative().optional(),
   creditTermDays: z.number().int().nonnegative().optional(),
   status: z.nativeEnum(MasterDataStatus).optional(),

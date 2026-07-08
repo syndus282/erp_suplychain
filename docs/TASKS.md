@@ -13,7 +13,7 @@
 | 2 | Procurement & Entrusted Import | ✅ Hoàn thành | Branch `claude/phase-2-procurement` (kế thừa Phase 1) |
 | 3 | Inventory & Warehouse | ✅ Hoàn thành | Branch `claude/phase-3-inventory` (kế thừa Phase 2) |
 | 4 | Distribution & Consignment | ✅ Hoàn thành | Branch `claude/phase-4-distribution` (kế thừa Phase 3) |
-| 5 | Sales Order & Customer | ⬜ | |
+| 5 | Sales Order & Customer | ✅ Hoàn thành | Branch `claude/phase-5-sales` (kế thừa Phase 4) |
 | 6 | Logistics & Delivery | ⬜ | |
 | 7 | Warranty/RMA/Field Service | ⬜ | |
 | 8 | Finance & Accounting | ⬜ | |
@@ -146,9 +146,95 @@ docs/design-system.md.
 
 ---
 
-Phase 5 - Sales Order & Customer: CHƯA BẮT ĐẦU. Customer Master đã có sẵn từ
-Phase 4 (src/modules/distribution/api/customers.ts) — Phase 5 tái sử dụng,
-không tạo lại.
+Phase 5 - Sales Order & Customer: HOÀN THÀNH trên branch `claude/phase-5-sales`
+(kế thừa từ Phase 4). Customer Master tái sử dụng nguyên vẹn từ Phase 4
+(src/modules/distribution/api/customers.ts) — chỉ bổ sung field `priceListId`
+vào schema Zod của customer (đã có sẵn trong Prisma schema từ Phase 0 nhưng
+Phase 4 chưa expose qua API).
+
+Đã xong:
+- Price List: CRUD (crud-factory) cho `PriceList` + resource con
+  `PriceListItem` (đơn giá theo từng sản phẩm, quản lý ở trang con
+  `/sales/price-lists/[id]/items` — cùng kiểu nested-resource với
+  StorageLocation của Phase 1, không dùng crud-factory vì không có
+  companyId trực tiếp).
+- Quotation: tạo (nhiều dòng hàng) → `send` (Draft→Sent) → `accept`/`reject`
+  → `convert` (Accepted → tạo SalesOrder mới copy nguyên dòng hàng, chặn
+  convert 2 lần cho cùng 1 báo giá).
+- Sales Order:
+  - `confirm`: tính tổng tiền đơn hàng, kiểm tra 2 quy tắc theo
+    docs/business-spec/05 mục 15 — (1) Credit Control: chặn cứng nếu
+    `currentDebt + orderTotal > creditLimit` của khách hàng (không có
+    override, nhất quán với cách `recordStockMovement` chặn âm kho); (2)
+    Price Policy: nếu đơn giá dòng hàng thấp hơn `PriceListItem` (bảng giá
+    gán cho khách) quá 20%, bắt buộc chọn người duyệt → tạo `ApprovalRequest`
+    dùng lại nguyên khung Workflow Phase 1, set status `PENDING_APPROVAL`;
+    ngược lại tự động `CONFIRMED`. `entity-sync.ts` thêm case "SalesOrder"
+    (map APPROVED→CONFIRMED, REJECTED→CANCELLED vì SalesOrderStatus không
+    có literal APPROVED/REJECTED như PurchaseRequestStatus).
+  - `allocate`: giữ hàng (Stock Reservation) — thêm 2 hàm mới vào
+    `src/modules/inventory/lib/stock-ledger.ts`: `reserveStock` (chuyển
+    `availableQty`→`reservedQty`, KHÔNG đụng `onHandQty`) và
+    `releaseReservation` (ngược lại, dùng khi hủy đơn). Tạo `StockReservation`
+    theo từng dòng hàng. Xuất kho thật (ISSUE) để lại Phase 6 (Logistics) khi
+    giao hàng thật.
+  - `cancel`: hủy ở mọi trạng thái trừ đã giao/đã hóa đơn; nếu đang
+    `ALLOCATED` thì giải phóng hết StockReservation trước khi chuyển
+    `CANCELLED`.
+  - Trang chi tiết `/sales/orders/[id]` xem hạn mức tín dụng, công nợ, từng
+    dòng hàng (đã giữ/đã giao).
+- Sales Return: tạo yêu cầu trả (theo SO đã Confirmed trở lên) → `approve`/
+  `reject` → `receive` (nhập kho lại qua `recordStockMovement` type RECEIPT,
+  yêu cầu chọn kho) → `qc` → `refund`. Hoàn tiền/đổi hàng thực tế (bút toán
+  công nợ) để lại Phase 8 (Kế toán), đã ghi rõ trong code.
+- Đã kiểm thử THẬT qua curl full-cycle: seed tồn kho 100 qua Stock Count →
+  tạo khách hàng (creditLimit 1,000,000) + bảng giá (giá niêm yết 100,000) →
+  gán bảng giá cho khách → tạo báo giá 10 sản phẩm giá niêm yết → gửi → chấp
+  nhận → convert sang SO → confirm (tự động Confirmed vì đúng giá niêm yết,
+  không cần duyệt) → allocate (reservedQty 10, availableQty 90 — đúng) →
+  test chặn Credit Limit (đơn 5,000,000 > hạn mức 1,000,000 → lỗi
+  CREDIT_LIMIT_EXCEEDED) → test chặn Price Policy (giá 50,000 = giảm 50% so
+  với giá niêm yết → bắt buộc chọn người duyệt, thiếu thì lỗi validation) →
+  confirm kèm approverUserId → tạo ApprovalRequest, SO chuyển
+  PENDING_APPROVAL → duyệt qua `/api/workflow/approval-requests/:id/decide`
+  → entity-sync tự chuyển SO sang CONFIRMED (xác nhận cơ chế tái sử dụng
+  Workflow hoạt động đúng) → tạo Sales Return 2 sản phẩm → approve → receive
+  (onHandQty 100→102, đúng) → qc → refund → cancel đơn đã Allocated (giải
+  phóng reservation, reservedQty về 0, availableQty về 102 — đúng). Playwright
+  xác nhận UI cả 5 trang (Bảng giá, chi tiết đơn giá, Báo giá, Đơn hàng bán +
+  trang chi tiết, Trả hàng). `npm run build`/`type-check`/`lint` đều sạch.
+- Sửa 1 bug phát hiện khi test UI: `parseSort()` mặc định fallback
+  `{createdAt:"desc"}` nhưng `SalesReturn` chỉ có field `requestedAt` (không
+  có `createdAt`) → phải truyền fallback tường minh
+  `{requestedAt:"desc"}` (src/modules/sales/api/sales-returns.ts).
+- Mở rộng `CrudPage` (dùng chung, không phải riêng Phase 5): thêm
+  `type: "date"` cho `CrudField` (trước đây chỉ có text/number/select/
+  checkbox/textarea, ngày optional phải nhập tay chuỗi ISO trong ô text) —
+  dùng cho `effectiveFrom`/`effectiveTo` của Price List.
+
+Còn thiếu / để lại có chủ đích (KHÔNG phải sót việc Phase 5):
+- Lead Management, Opportunity Management (docs/business-spec/05 mục 7-8) —
+  CRM trước bán hàng, không có model trong Prisma schema từ Phase 0 (schema
+  chỉ có Quotation/SalesOrder/SalesReturn) → xác nhận đây là phạm vi bị cắt
+  có chủ đích từ lúc thiết kế ERD, không phải thiếu sót của Phase 5.
+  Customer Service/Ticket (mục 21) cũng vậy.
+- Backorder Management chi tiết (mục 19) — SalesOrderLine đã có
+  `qtyDelivered` để tính phần còn thiếu, nhưng chưa có màn hình/luồng riêng
+  theo dõi ngày dự kiến có hàng cho phần backorder.
+- Đơn hàng gấp (mục 18: đánh dấu ưu tiên, đẩy kho xử lý trước) — chưa có
+  field priority trên SalesOrder.
+- Giao hàng thật (xuất kho ISSUE, Picking, POD) và Invoice/Payment/Closed —
+  để lại Phase 6 (Logistics) và Phase 8 (Kế toán) đúng theo ROADMAP, đã ghi
+  chú trực tiếp trong SalesOrderDetailClient UI.
+- Chưa có test tự động — vẫn kiểm thử thủ công qua curl + Playwright.
+
+File liên quan: src/modules/sales/**, src/app/api/sales/**,
+src/app/(app)/sales/**, src/modules/inventory/lib/stock-ledger.ts (thêm
+reserveStock/releaseReservation), src/modules/workflow/lib/entity-sync.ts
+(thêm case SalesOrder), src/modules/distribution/api/customers.ts (thêm
+priceListId), src/modules/master-data/components/CrudPage.tsx (thêm field
+type "date"), src/components/ui/Badge.tsx (thêm tone cho status mới),
+prisma/seed.ts (thêm resource price-list/quotation/sales-order/sales-return).
 ```
 
 ---
@@ -179,6 +265,9 @@ không tạo lại.
 - Mọi thay đổi tồn kho PHẢI qua `src/modules/inventory/lib/stock-ledger.ts#recordStockMovement()` — không tự ý update `InventoryBalance` trực tiếp ở module khác (tránh 2 nguồn sự thật, xem docs/data-model.md mục 16.2).
 - Customer Master (bao gồm Dealer) thuộc module `distribution` (không phải `sales`) vì Phase 4 (Distribution) cần nó trước Phase 5 (Sales) theo đúng thứ tự ROADMAP — Phase 5 import và tái sử dụng, KHÔNG tạo lại Customer CRUD.
 - Tồn kho ký gửi (`ConsignmentBalance`) tách hoàn toàn khỏi `InventoryBalance` — không dùng chung bảng, không coi đại lý là 1 Warehouse ảo. Khi ký gửi/thu hồi, `recordStockMovement` chỉ chạm vào phía kho công ty (CONSIGNMENT_OUT/CONSIGNMENT_RETURN); phía đại lý cập nhật thủ công qua `ConsignmentBalance` trong cùng transaction.
+- Giữ hàng cho Sales Order (Stock Reservation) dùng 2 hàm riêng `reserveStock`/`releaseReservation` (src/modules/inventory/lib/stock-ledger.ts) — CHỈ chuyển `availableQty`↔`reservedQty`, không đụng `onHandQty`/tạo `StockMovement`. Xuất kho thật (ISSUE, trừ `onHandQty`) là hành động riêng thuộc Phase 6 (Logistics) khi giao hàng — Sales Order (Phase 5) dừng lại ở bước "giữ chỗ", không tự xuất kho.
+- Sales Order dùng lại nguyên khung Workflow Phase 1 (ApprovalRequest) khi cần duyệt vượt chính sách giá — vì `SalesOrderStatus` không có literal APPROVED/REJECTED (khác `PurchaseRequestStatus`), `entity-sync.ts` phải map thủ công (APPROVED→CONFIRMED, REJECTED→CANCELLED) thay vì gán thẳng như case PurchaseRequest.
+- `parseSort()` có fallback mặc định `{createdAt:"desc"}` — bảng nào KHÔNG có cột `createdAt` (vd. `SalesReturn` chỉ có `requestedAt`) PHẢI truyền fallback tường minh, nếu không Prisma sẽ báo lỗi `Unknown argument` lúc runtime (không bắt được ở type-check vì `orderBy` được build động).
 - Xem đầy đủ tại CLAUDE.md mục 3-4 và ERD tại docs/data-model.md
 
 ## Vấn đề/rủi ro đã phát hiện (điền khi gặp)

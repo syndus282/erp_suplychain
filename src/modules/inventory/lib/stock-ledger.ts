@@ -86,3 +86,51 @@ export async function recordStockMovement(tx: Tx, input: StockMovementInput): Pr
     });
   }
 }
+
+/**
+ * Giữ hàng (Sales Order allocation) — chỉ chuyển 1 phần `availableQty` sang
+ * `reservedQty`, KHÔNG đụng `onHandQty` (hàng vẫn nằm vật lý trong kho, chỉ
+ * không còn "khả dụng" cho đơn khác). Xuất kho thật (ISSUE) diễn ra ở bước
+ * giao hàng (Phase 6), lúc đó mới gọi `recordStockMovement` + giải phóng phần
+ * đã giữ tương ứng.
+ */
+export async function reserveStock(
+  tx: Tx,
+  params: { warehouseId: string; productId: string; lotId?: string | null; qty: number }
+): Promise<void> {
+  const existing = await tx.inventoryBalance.findFirst({
+    where: { warehouseId: params.warehouseId, productId: params.productId, lotId: params.lotId ?? null },
+  });
+
+  if (!existing || existing.availableQty < params.qty) {
+    throw businessRuleError("Không đủ tồn kho khả dụng để giữ hàng cho đơn này", {
+      rule: "INSUFFICIENT_AVAILABLE_STOCK",
+      warehouseId: params.warehouseId,
+      productId: params.productId,
+      available: existing?.availableQty ?? 0,
+      requested: params.qty,
+    });
+  }
+
+  await tx.inventoryBalance.update({
+    where: { id: existing.id },
+    data: { reservedQty: existing.reservedQty + params.qty, availableQty: existing.availableQty - params.qty },
+  });
+}
+
+/** Giải phóng hàng đã giữ (hủy đơn/hủy giữ hàng) — ngược lại với `reserveStock`. */
+export async function releaseReservation(
+  tx: Tx,
+  params: { warehouseId: string; productId: string; lotId?: string | null; qty: number }
+): Promise<void> {
+  const existing = await tx.inventoryBalance.findFirst({
+    where: { warehouseId: params.warehouseId, productId: params.productId, lotId: params.lotId ?? null },
+  });
+  if (!existing) return;
+
+  const releasedQty = Math.min(params.qty, existing.reservedQty);
+  await tx.inventoryBalance.update({
+    where: { id: existing.id },
+    data: { reservedQty: existing.reservedQty - releasedQty, availableQty: existing.availableQty + releasedQty },
+  });
+}

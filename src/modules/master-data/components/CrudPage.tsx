@@ -15,7 +15,7 @@ export interface CrudFieldOption {
 export interface CrudField {
   name: string;
   label: string;
-  type: "text" | "number" | "select" | "checkbox" | "textarea";
+  type: "text" | "number" | "select" | "checkbox" | "textarea" | "date";
   required?: boolean;
   optionsUrl?: string; // trả {success,data:[...]}
   optionLabelKey?: string; // mặc định "name"
@@ -339,7 +339,7 @@ export function CrudPage<T extends { id: string }>({
                   ) : (
                     <Input
                       id={f.name}
-                      type={f.type === "number" ? "number" : "text"}
+                      type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
                       value={(formValues[f.name] as string) ?? ""}
                       onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
                     />

@@ -46,6 +46,11 @@ const RESOURCES = [
   "consignment-sales-report",
   "consignment-reconciliation",
   "stock-recall",
+  // Phase 5 — Sales Order & Customer
+  "price-list", // bao gồm cả PriceListItem (không có permission resource riêng)
+  "quotation",
+  "sales-order",
+  "sales-return",
 ] as const;
 
 const ACTIONS = ["read", "create", "update"] as const;
@@ -57,6 +62,9 @@ const EXTRA_ACTIONS: Partial<Record<(typeof RESOURCES)[number], string[]>> = {
   "stock-count": ["submit", "approve"],
   "consignment-shipment": ["deliver"],
   "stock-recall": ["receive"],
+  quotation: ["send", "accept", "reject", "convert"],
+  "sales-order": ["confirm", "allocate", "cancel"],
+  "sales-return": ["approve", "reject", "receive", "qc", "refund"],
 };
 
 /** Resource chỉ có 1 phần action chuẩn (vd. "user" chỉ có read, chưa có UI tạo/sửa User ở Phase 1-2). */

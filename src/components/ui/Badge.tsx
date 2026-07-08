@@ -20,11 +20,18 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   DELIVERED: "success",
   CLOSED: "success",
   CONFIRMED: "success",
+  ACCEPTED: "success",
+  REFUNDED: "success",
+  INVOICED: "success",
 
   PENDING_APPROVAL: "warning",
   PARTIALLY_RECEIVED: "warning",
   PARTIALLY_PAID: "warning",
   PENDING: "warning",
+  REQUESTED: "warning",
+  RECEIVED: "warning",
+  QC_DONE: "warning",
+  EXPIRED: "warning",
 
   REJECTED: "danger",
   CANCELLED: "danger",
@@ -37,6 +44,9 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   DRAFT: "info",
   SHIPPING: "info",
   IN_PROGRESS: "info",
+  SENT: "info",
+  ALLOCATED: "info",
+  PICKING: "info",
 };
 
 export function toneForStatus(status: string): BadgeTone {
